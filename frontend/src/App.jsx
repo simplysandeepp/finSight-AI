@@ -5,6 +5,7 @@ import { TrendingUp, Target, Info } from 'lucide-react';
 
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import ActiveSignals from './pages/ActiveSignals';
 import SectorAnalysis from './pages/SectorAnalysis';
@@ -68,34 +69,42 @@ const App = () => {
 
     return (
         <BrowserRouter>
-            <div className="flex h-screen bg-[#0d0d0f] text-zinc-100 overflow-hidden font-sans">
-                <Sidebar />
+            <Routes>
+                {/* Landing Page - No Sidebar/Navbar */}
+                <Route path="/" element={<Landing />} />
 
-                <main className="flex-1 overflow-y-auto bg-gradient-to-b from-[#0d0d0f] to-[#09090b]">
-                    <Navbar
-                        companyId={companyId}
-                        setCompanyId={setCompanyId}
-                        asOfDate={asOfDate}
-                        setAsOfDate={setAsOfDate}
-                        handlePredict={handlePredict}
-                        loading={loading}
-                    />
+                {/* Dashboard Routes - With Sidebar/Navbar */}
+                <Route path="/*" element={
+                    <div className="flex h-screen bg-[#0d0d0f] text-zinc-100 overflow-hidden font-sans">
+                        <Sidebar />
 
-                    <div className="p-10 max-w-7xl mx-auto">
-                        <Routes>
-                            <Route
-                                path="/"
-                                element={<Dashboard data={data} error={error} recStyles={recStyles} chartData={chartData} />}
+                        <main className="flex-1 overflow-y-auto bg-gradient-to-b from-[#0d0d0f] to-[#09090b]">
+                            <Navbar
+                                companyId={companyId}
+                                setCompanyId={setCompanyId}
+                                asOfDate={asOfDate}
+                                setAsOfDate={setAsOfDate}
+                                handlePredict={handlePredict}
+                                loading={loading}
                             />
-                            <Route path="/signals" element={<ActiveSignals />} />
-                            <Route path="/sector" element={<SectorAnalysis data={data} />} />
-                            <Route path="/peers" element={<PeerBenchmarking data={data} />} />
-                            <Route path="/audit" element={<AuditTrail />} />
-                            <Route path="/configs" element={<Configurations />} />
-                        </Routes>
+
+                            <div className="p-10 max-w-7xl mx-auto">
+                                <Routes>
+                                    <Route
+                                        path="/dashboard"
+                                        element={<Dashboard data={data} error={error} recStyles={recStyles} chartData={chartData} />}
+                                    />
+                                    <Route path="/signals" element={<ActiveSignals />} />
+                                    <Route path="/sector" element={<SectorAnalysis data={data} />} />
+                                    <Route path="/peers" element={<PeerBenchmarking data={data} />} />
+                                    <Route path="/audit" element={<AuditTrail />} />
+                                    <Route path="/configs" element={<Configurations />} />
+                                </Routes>
+                            </div>
+                        </main>
                     </div>
-                </main>
-            </div>
+                } />
+            </Routes>
         </BrowserRouter>
     );
 };
