@@ -13,7 +13,7 @@ import uuid
 from .orchestrate import orchestrate
 from audit.audit_trail import init_db, get_audit_trail
 
-app = FastAPI(title="Multimodal Financial Advisor API")
+app = FastAPI(title="FinSight Ai API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +26,10 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     await init_db()
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "version": "1.0.1"}
 
 class PredictRequest(BaseModel):
     company_id: str

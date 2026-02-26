@@ -1,7 +1,7 @@
-# synthetic_financial_gen
+# FinSight Ai
 
 Reproducible synthetic multimodal financial dataset generator for the
-**Multimodal Multi-Agent Financial Advisor MVP**.
+**FinSight Ai | Multi-Agent Financial Intelligence Platform**.
 
 ## Requirements
 

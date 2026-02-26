@@ -2,7 +2,7 @@
 synthetic_financial_gen/generator.py
 =====================================
 Reproducible synthetic multimodal financial dataset generator for the
-Multimodal Multi-Agent Financial Advisor MVP.
+FinSight Ai | Multi-Agent Financial Intelligence Platform.
 
 Usage
 -----

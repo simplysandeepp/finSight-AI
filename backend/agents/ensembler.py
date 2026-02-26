@@ -42,7 +42,11 @@ class EnsemblerAgent(BaseAgent):
         base_ebitda_ci = [ebitda_f.get("p05", base_ebitda * 0.9), ebitda_f.get("p95", base_ebitda * 1.1)]
 
         prompt = f"Agent Outputs: {input_data.agent_outputs}"
-        system_prompt = "You are a chief investment officer. Aggregate the agent findings and return a JSON matching the EnsemblerOutput schema. Ensure you include both revenue_ci and ebitda_ci in final_forecast. IMPORTANT: Return ONLY valid JSON."
+        system_prompt = (
+            "You are a chief investment officer. Aggregate the agent findings and return a JSON matching the EnsemblerOutput schema. "
+            "IMPORTANT: final_forecast.revenue_ci and final_forecast.ebitda_ci MUST be a LIST of two floats: [lower_bound, upper_bound]. "
+            "Return ONLY valid JSON."
+        )
         
         try:
             response_text = await asyncio.wait_for(
@@ -71,14 +75,23 @@ class EnsemblerAgent(BaseAgent):
 
             combined_conf = res_json.get("combined_confidence", 0.7)
 
+            def to_ci_list(val, fallback):
+                if isinstance(val, list) and len(val) >= 2:
+                    return [float(val[0]), float(val[1])]
+                if isinstance(val, dict):
+                    p05 = val.get("p05", val.get("low", fallback[0]))
+                    p95 = val.get("p95", val.get("high", fallback[1]))
+                    return [float(p05), float(p95)]
+                return fallback
+
             return EnsemblerOutput(
                 request_id=input_data.request_id,
                 confidence=1.0,
                 final_forecast=FinalForecast(
                     revenue_p50=float(final_forecast_data.get("revenue_p50", base_rev)),
                     ebitda_p50=float(final_forecast_data.get("ebitda_p50", base_ebitda)),
-                    revenue_ci=final_forecast_data.get("revenue_ci", base_rev_ci),
-                    ebitda_ci=final_forecast_data.get("ebitda_ci", base_ebitda_ci)
+                    revenue_ci=to_ci_list(final_forecast_data.get("revenue_ci"), base_rev_ci),
+                    ebitda_ci=to_ci_list(final_forecast_data.get("ebitda_ci"), base_ebitda_ci)
                 ),
                 recommendation=Recommendation(
                     action=recommendation_data.get("action", "monitor"),

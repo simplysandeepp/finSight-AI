@@ -1,7 +1,7 @@
 """
 agents/base.py
 ==============
-Base abstractions for all agents in the Multimodal Multi-Agent Financial Advisor.
+Base abstractions for all agents in the FinSight Ai Intelligence Platform.
 Implements Layer 4 of the system architecture.
 """
 

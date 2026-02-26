@@ -22,8 +22,8 @@ const Sidebar = () => {
                     <Activity className="text-white" size={22} />
                 </div>
                 <div>
-                    <h1 className="font-bold text-lg tracking-tight">Vantage AI</h1>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Financial Intelligence</p>
+                    <h1 className="font-bold text-lg tracking-tight">FinSight Ai</h1>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Intelligence Dashboard</p>
                 </div>
             </div>
 

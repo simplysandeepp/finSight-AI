@@ -6,7 +6,7 @@ const Navbar = ({ companyId, setCompanyId, asOfDate, setAsOfDate, handlePredict,
         <header className="sticky top-0 z-30 flex items-center justify-between px-10 py-6 bg-background/80 backdrop-blur-md border-b border-zinc-900">
             <div className="flex items-center gap-8">
                 <div>
-                    <h2 className="text-xl font-semibold">Intelligence Dashboard</h2>
+                    <h2 className="text-xl font-semibold">FinSight Ai Analysis</h2>
                     <p className="text-xs text-zinc-500">Processing company-specific probabilistic forecasts.</p>
                 </div>
             </div>

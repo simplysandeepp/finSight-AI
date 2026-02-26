@@ -11,6 +11,7 @@ import pickle
 import json
 import numpy as np
 import os
+import uuid
 from typing import List, Dict, Any, Optional
 from loguru import logger as Logger
 from pathlib import Path
@@ -59,12 +60,10 @@ def get_geometric_mean(values: List[float]) -> float:
         return 0.0
     return float(np.exp(np.mean(np.log([v if v > 0 else 1e-6 for v in values]))))
 
-async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
+async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
     start_time = time.time()
-    request_id = request.get("request_id", "req-unknown")
-    trace_id = request.get("trace_id", "trace-unknown")
-    company_id = request.get("company_id")
-    as_of_date = request.get("as_of_date")
+    request_id = f"req-{uuid.uuid4().hex[:8]}"
+    trace_id = f"trace-{uuid.uuid4().hex[:8]}"
     
     logger.info(f"Orchestrating request {request_id} for {company_id} as of {as_of_date}")
     
@@ -256,9 +255,9 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
     final_output = await ensembler.run(ensembler_input)
     
     # 8. Recalculate combined confidence
-    confidences = [v.confidence for v in agent_outputs.values()]
+    confidences = [v.confidence if hasattr(v, 'confidence') else v.get('confidence', 0) for v in agent_outputs.values()]
     base_conf = get_geometric_mean(confidences)
-    combined_conf = base_conf * (0.9 ** len(degraded))
+    combined_conf = base_conf * (0.9 ** len(degraded_agents))
     final_output.combined_confidence = float(np.clip(combined_conf, 0, 1))
     
     latency_ms = int((time.time() - start_time) * 1000)
@@ -267,16 +266,16 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
         "request_id": request_id,
         "trace_id": trace_id,
         "model_version": "bundle_v1",
-        "status": "success" if not degraded else "partial",
+        "status": "success" if not degraded_agents else "partial",
         "latency_ms": latency_ms,
         "result": final_output.model_dump(),
         "data_source": "live_vantage" if live_data_available else "synthetic_store",
         "explainability": {
             "confidence_breakdown": {k: v.confidence for k, v in agent_outputs.items()},
-            "degraded": degraded
+            "degraded": degraded_agents
         },
         "audit_link": f"https://audit.internal/{request_id}",
-        "agents_called": agent_names,
-        "agent_latencies": {name: 2000 for name in agent_names}, # Mock latencies
-        "degraded_agents": degraded
+        "agents_called": list(agents.keys()),
+        "agent_latencies": agent_latencies,
+        "degraded_agents": degraded_agents
     }

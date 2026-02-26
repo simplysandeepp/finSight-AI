@@ -91,7 +91,13 @@ def get_ticker_data(ticker_symbol: str) -> pd.DataFrame:
         final_df['industry'] = industry
         
         news = ticker.news
-        news_context = "\n".join([n['title'] for n in news[:5]]) if news else ""
+        news_titles = []
+        if news:
+            for n in news[:5]:
+                if isinstance(n, dict) and 'title' in n:
+                    news_titles.append(n['title'])
+        
+        news_context = "\n".join(news_titles) if news_titles else "No recent news available."
         
         final_df['transcript_excerpt'] = (
             f"BUSINESS SUMMARY:\n{summary}\n\n"

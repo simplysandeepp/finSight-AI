@@ -11,7 +11,7 @@ from agents.financial_model import FinancialModelAgent
 
 def main():
     print("\n" + "="*50)
-    print("🚀 VANTAGE AI: Setup & Training Pipeline")
+    print("🚀 FINSIGHT AI: Setup & Training Pipeline")
     print("="*50)
     
     # Ensure out directory exists
