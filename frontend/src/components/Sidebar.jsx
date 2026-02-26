@@ -7,12 +7,12 @@ import {
 
 const Sidebar = () => {
     const navItems = [
-        { icon: LayoutDashboard, label: 'Market Overview', path: '/' },
-        { icon: Activity, label: 'Active Signals', path: '/signals' },
-        { icon: Globe, label: 'Sector Analysis', path: '/sector' },
-        { icon: Users, label: 'Peer Benchmarking', path: '/peers' },
-        { icon: Bell, label: 'Audit Trail', path: '/audit' },
-        { icon: Settings, label: 'Configurations', path: '/configs' },
+        { icon: LayoutDashboard, label: 'Market Overview', path: '/dashboard' },
+        { icon: Activity,        label: 'Active Signals',  path: '/signals' },
+        { icon: Globe,           label: 'Sector Analysis', path: '/sector' },
+        { icon: Users,           label: 'Peer Benchmarking', path: '/peers' },
+        { icon: Bell,            label: 'Audit Trail',     path: '/audit' },
+        { icon: Settings,        label: 'Configurations',  path: '/configs' },
     ];
 
     return (
