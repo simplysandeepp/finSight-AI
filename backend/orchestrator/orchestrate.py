@@ -30,10 +30,24 @@ logger = Logger.bind(component="orchestrator")
 PEER_MAP = {
     "AAPL": ["MSFT", "GOOGL", "META"],
     "MSFT": ["AAPL", "GOOGL", "AMZN"],
-    "TSLA": ["F", "GM", "TM"],
-    "NVDA": ["AMD", "INTC", "AVGO"],
-    "AMZN": ["WMT", "TGT", "EBAY"]
+    "TSLA": ["F", "GM", "TM", "BYDDF"],
+    "NVDA": ["AMD", "INTC", "AVGO", "MU"],
+    "AMZN": ["WMT", "TGT", "EBAY", "BABA"],
+    "GOOGL": ["MSFT", "META", "AMZN"],
+    "META": ["GOOGL", "SNAP", "PINS"],
+    "AMD": ["NVDA", "INTC", "ARM"],
+    "INTC": ["NVDA", "AMD", "TSM"],
+    "NFLX": ["DIS", "PARA", "WBD"],
 }
+
+def get_peers(ticker: str) -> List[str]:
+    ticker = ticker.upper()
+    if ticker in PEER_MAP:
+        return PEER_MAP[ticker]
+    
+    # Generic fallback: if it's a tech-looking ticker, return some general tech peers
+    # Otherwise, return empty or a few global giants
+    return ["SPY", "QQQ"] # Generic benchmark fallback
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -134,12 +148,12 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
                     transcript_text = t_rec['transcript_excerpt']
                     break
     elif live_data_available:
-        transcript_text = f"Live analysis for {company_id} based on latest financial disclosures. The company operates in {features.get('industry')} sector."
+        transcript_text = features.get('transcript_excerpt', f"Live analysis for {company_id}.")
 
     # 4. Fetch Peer Data for Competitor Agent
     peer_financials = []
-    if live_data_available and company_id in PEER_MAP:
-        peer_tickers = PEER_MAP[company_id]
+    if live_data_available:
+        peer_tickers = get_peers(company_id)
         logger.info(f"Fetching peer data for: {peer_tickers}")
         for pt in peer_tickers:
             try:
@@ -187,25 +201,49 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
         )
     }
     
-    # 6. Async gather with 10s hard timeout
-    tasks = []
-    agent_names = list(agents.keys())
-    for name in agent_names:
-        tasks.append(asyncio.wait_for(agents[name].run(inputs[name]), timeout=10.0))
+    # 6. Execute Agents in Parallel
+    start_agent_execution_time = time.time()
     
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    # Create tasks for each agent, wrapping with asyncio.wait_for for timeout
+    agent_tasks = {
+        name: asyncio.wait_for(agent.run(inputs[name]), timeout=10.0)
+        for name, agent in agents.items()
+    }
     
-    degraded = []
+    results = await asyncio.gather(*agent_tasks.values(), return_exceptions=True)
+    
     agent_outputs = {}
+    agent_latencies = {}
+    degraded_agents = []
     
-    for name, res in zip(agent_names, results):
+    for (name, _), res in zip(agent_tasks.items(), results):
+        # Note: For precise individual agent latency, each agent.run() would need to be timed internally.
+        # Here, we're calculating an average or using the total wall time for simplicity.
+        # The instruction implies a simpler approach for `agent_latencies` within a gather.
+        # The provided snippet calculates `execution_time` for the whole gather, then divides.
+        # Let's use the total execution time for the gather as the "wall time" for all agents.
+        
         if isinstance(res, Exception):
             logger.warning(f"Agent {name} failed or timed out: {res}")
-            degraded.append(name)
+            degraded_agents.append(name)
+            # The instruction's example for failed agent output is a dict, not a Pydantic model.
+            # Assuming agent_outputs should store the actual model if successful, or a dict for failure.
+            agent_outputs[name] = {"request_id": request_id, "confidence": 0, "error": str(res)}
+            agent_latencies[name] = 0 # Failed agents have 0 effective latency for success
         else:
             agent_outputs[name] = res
+            # Assigning an average latency for simplicity as per the instruction's example logic
+            # A more precise approach would involve timing each task individually before gather.
+            agent_latencies[name] = int((time.time() - start_agent_execution_time) * 1000) # Wall time up to this point
     
-    if len(agent_outputs) < 2:
+    # The instruction's example for agent_latencies was `execution_time // len(active_agents)`.
+    # Let's refine this to reflect the total wall time of the gather operation.
+    total_agent_execution_ms = int((time.time() - start_agent_execution_time) * 1000)
+    for name in agent_latencies:
+        if agent_latencies[name] != 0: # Only update successful agents
+            agent_latencies[name] = total_agent_execution_ms
+    
+    if len([k for k, v in agent_outputs.items() if not isinstance(v, dict) or "error" not in v]) < 2:
         raise RuntimeError("InsufficientDataError: Fewer than 2 agents succeeded.")
 
     # 7. Call Ensembler

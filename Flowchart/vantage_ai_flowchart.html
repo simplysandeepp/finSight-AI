@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vantage AI — Full System Flowchart</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #060608;
+    --panel: #0d0d12;
+    --border: #1a1a2e;
+    --blue: #3b82f6;
+    --indigo: #6366f1;
+    --violet: #8b5cf6;
+    --emerald: #10b981;
+    --amber: #f59e0b;
+    --rose: #f43f5e;
+    --cyan: #06b6d4;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --dim: #334155;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 10%, rgba(59,130,246,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 50% at 80% 90%, rgba(99,102,241,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 50% 50%, rgba(16,185,129,0.03) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+  .header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 100px;
+    padding: 6px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--blue);
+    letter-spacing: 0.1em;
+    margin-bottom: 20px;
+  }
+  .header-badge::before { content: '●'; font-size: 8px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .header h1 {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 50%, #6366f1 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  .header p {
+    color: var(--muted);
+    font-size: 15px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── Sections ── */
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .section-label .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .section-label h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-label .line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Flow Columns ── */
+  .flow-row {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 0;
+  }
+  .flow-row-3 { grid-template-columns: repeat(3, 1fr); }
+  .flow-row-4 { grid-template-columns: repeat(4, 1fr); }
+  .flow-row-5 { grid-template-columns: repeat(5, 1fr); }
+  .flow-row-2 { grid-template-columns: repeat(2, 1fr); }
+  .flow-row-1 { grid-template-columns: 1fr; }
+
+  /* ── Arrow ── */
+  .arrow-down {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 8px 0;
+  }
+  .arrow-down .stem {
+    width: 2px;
+    height: 28px;
+    background: linear-gradient(to bottom, var(--border), var(--dim));
+  }
+  .arrow-down .head {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--dim);
+  }
+  .arrow-down.big .stem { height: 40px; background: linear-gradient(to bottom, var(--dim), var(--blue)); }
+  .arrow-down.big .head { border-top-color: var(--blue); }
+
+  .arrow-down-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 6px 0;
+  }
+  .arrow-down-label .stem { width: 2px; height: 20px; background: var(--dim); }
+  .arrow-down-label .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    background: var(--bg);
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    letter-spacing: 0.08em;
+    margin: 0;
+  }
+  .arrow-down-label .stem2 { width: 2px; height: 20px; background: var(--dim); }
+  .arrow-down-label .head {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid var(--dim);
+  }
+
+  /* ── Parallel bracket ── */
+  .parallel-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .parallel-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 8px 0 16px;
+  }
+  .parallel-indicator .bar { height: 2px; flex: 1; background: linear-gradient(to right, transparent, var(--indigo)); }
+  .parallel-indicator .bar.r { background: linear-gradient(to left, transparent, var(--indigo)); }
+  .parallel-indicator .badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(99,102,241,0.12);
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 100px;
+    padding: 4px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #a5b4fc;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .parallel-indicator .badge::before { content: '⚡'; font-size: 11px; }
+
+  /* ── NODE CARDS ── */
+  .node {
+    border-radius: 16px;
+    padding: 18px 20px;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: default;
+  }
+  .node:hover {
+    transform: translateY(-2px);
+  }
+
+  .node-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .node-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .node-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+  .node-io {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .node-io .in { color: #a5b4fc; }
+  .node-io .out { color: #6ee7b7; }
+  .node-io .warn { color: #fbbf24; }
+
+  .detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .detail-list span {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .detail-list span::before { content: '→'; color: var(--dim); flex-shrink: 0; }
+
+  /* Node color themes */
+  .n-blue {
+    background: rgba(59,130,246,0.07);
+    border: 1px solid rgba(59,130,246,0.2);
+  }
+  .n-blue:hover { box-shadow: 0 8px 32px rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.4); }
+  .n-blue .node-tag { background: rgba(59,130,246,0.15); color: #93c5fd; }
+  .n-blue .node-title { color: #93c5fd; }
+
+  .n-indigo {
+    background: rgba(99,102,241,0.07);
+    border: 1px solid rgba(99,102,241,0.2);
+  }
+  .n-indigo:hover { box-shadow: 0 8px 32px rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.4); }
+  .n-indigo .node-tag { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+  .n-indigo .node-title { color: #a5b4fc; }
+
+  .n-violet {
+    background: rgba(139,92,246,0.07);
+    border: 1px solid rgba(139,92,246,0.2);
+  }
+  .n-violet:hover { box-shadow: 0 8px 32px rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.4); }
+  .n-violet .node-tag { background: rgba(139,92,246,0.15); color: #c4b5fd; }
+  .n-violet .node-title { color: #c4b5fd; }
+
+  .n-emerald {
+    background: rgba(16,185,129,0.07);
+    border: 1px solid rgba(16,185,129,0.2);
+  }
+  .n-emerald:hover { box-shadow: 0 8px 32px rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.4); }
+  .n-emerald .node-tag { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+  .n-emerald .node-title { color: #6ee7b7; }
+
+  .n-amber {
+    background: rgba(245,158,11,0.07);
+    border: 1px solid rgba(245,158,11,0.2);
+  }
+  .n-amber:hover { box-shadow: 0 8px 32px rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.4); }
+  .n-amber .node-tag { background: rgba(245,158,11,0.15); color: #fcd34d; }
+  .n-amber .node-title { color: #fcd34d; }
+
+  .n-cyan {
+    background: rgba(6,182,212,0.07);
+    border: 1px solid rgba(6,182,212,0.2);
+  }
+  .n-cyan:hover { box-shadow: 0 8px 32px rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.4); }
+  .n-cyan .node-tag { background: rgba(6,182,212,0.15); color: #67e8f9; }
+  .n-cyan .node-title { color: #67e8f9; }
+
+  .n-rose {
+    background: rgba(244,63,94,0.07);
+    border: 1px solid rgba(244,63,94,0.2);
+  }
+  .n-rose:hover { box-shadow: 0 8px 32px rgba(244,63,94,0.12); border-color: rgba(244,63,94,0.4); }
+  .n-rose .node-tag { background: rgba(244,63,94,0.15); color: #fda4af; }
+  .n-rose .node-title { color: #fda4af; }
+
+  .n-slate {
+    background: rgba(51,65,85,0.35);
+    border: 1px solid rgba(100,116,139,0.2);
+  }
+  .n-slate:hover { box-shadow: 0 8px 32px rgba(100,116,139,0.1); border-color: rgba(100,116,139,0.4); }
+  .n-slate .node-tag { background: rgba(100,116,139,0.2); color: #94a3b8; }
+  .n-slate .node-title { color: #cbd5e1; }
+
+  /* Big accent node */
+  .node-big {
+    padding: 24px 28px;
+    border-radius: 20px;
+  }
+  .node-big .node-title { font-size: 16px; margin-bottom: 8px; }
+
+  /* LLM chip */
+  .llm-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(139,92,246,0.12);
+    border: 1px solid rgba(139,92,246,0.25);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: #c4b5fd;
+    margin-top: 6px;
+    margin-right: 4px;
+    display: inline-block;
+  }
+
+  /* ── Connector lines between sections ── */
+  .big-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 16px 0;
+    gap: 0;
+  }
+  .big-arrow .line {
+    width: 2px;
+    height: 32px;
+    background: linear-gradient(to bottom, var(--dim), var(--blue));
+  }
+  .big-arrow .arrowhead {
+    width: 0; height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 10px solid var(--blue);
+  }
+  .big-arrow .label {
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 6px;
+    padding: 3px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--blue);
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  /* ── Merge node ── */
+  .merge-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 8px 0 16px;
+  }
+  .merge-indicator .bar {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(to right, transparent, var(--emerald));
+  }
+  .merge-indicator .bar.r {
+    background: linear-gradient(to left, transparent, var(--emerald));
+  }
+  .merge-indicator .badge {
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.25);
+    padding: 4px 14px;
+    border-radius: 100px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #6ee7b7;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 48px;
+    padding: 24px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+  }
+
+  /* ── Degraded path note ── */
+  .degraded-note {
+    background: rgba(245,158,11,0.06);
+    border: 1px dashed rgba(245,158,11,0.25);
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #fcd34d;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  .degraded-note strong { color: #fbbf24; }
+
+  .gap { margin-bottom: 16px; }
+  .gap-sm { margin-bottom: 10px; }
+  .gap-lg { margin-bottom: 28px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .flow-row-4, .flow-row-5 { grid-template-columns: repeat(2,1fr); }
+    .flow-row-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ HEADER ══ -->
+  <div class="header">
+    <div class="header-badge">SYSTEM ARCHITECTURE · VANTAGE AI · v1.0</div>
+    <h1>Full Project Flowchart</h1>
+    <p>Multimodal Multi-Agent Financial Intelligence Platform — End-to-End Data &amp; Control Flow</p>
+  </div>
+
+
+  <!-- ════════════════════════════════════════
+       PHASE 0 — SETUP / OFFLINE PIPELINE
+  ════════════════════════════════════════ -->
+  <div class="section-label">
+    <span class="num">PHASE 0</span>
+    <h2>Offline Data &amp; Training Pipeline</h2>
+    <div class="line"></div>
+  </div>
+  <div class="flow-row flow-row-3 gap">
+    <div class="node n-slate">
+      <span class="node-tag">generator.py</span>
+      <div class="node-title">Synthetic Data Generator</div>
+      <div class="detail-list">
+        <span>40 companies × 20 quarters = 800 rows</span>
+        <span>GBM or AR(1) revenue simulation</span>
+        <span>Bull / Neutral / Bear scenarios (40/40/20%)</span>
+        <span>Mismatch flags, restatement rate</span>
+        <span>10 transcript templates w/ sentiment</span>
+      </div>
+      <div class="node-io">
+        <span class="out">→ out/synthetic_financials.csv</span><br/>
+        <span class="out">→ out/sample_transcripts.jsonl</span>
+      </div>
+    </div>
+
+    <div class="node n-slate">
+      <span class="node-tag">feature_store.py</span>
+      <div class="node-title">Feature Engineering</div>
+      <div class="detail-list">
+        <span>Lag features: revenue 1Q/2Q/4Q, EBITDA 1Q</span>
+        <span>Rolling 4Q mean &amp; std (revenue, EBITDA margin)</span>
+        <span>YoY &amp; QoQ growth rates</span>
+        <span>One-hot encode scenario column</span>
+        <span>Temporal split 70 / 15 / 15 by date</span>
+        <span>Drop NaN rows from lag windows</span>
+      </div>
+      <div class="node-io">
+        <span class="in">← synthetic_financials.csv</span><br/>
+        <span class="out">→ out/features_v1.pkl</span><br/>
+        <span class="out">→ out/feature_manifest.json</span>
+      </div>
+    </div>
+
+    <div class="node n-slate">
+      <span class="node-tag">financial_model.py train()</span>
+      <div class="node-title">XGBoost Model Training</div>
+      <div class="detail-list">
+        <span>2 targets: revenue, EBITDA</span>
+        <span>3 quantiles: α = 0.05, 0.50, 0.95</span>
+        <span>= 6 XGBoost models trained</span>
+        <span>Objective: reg:quantileerror</span>
+        <span>100 estimators, max_depth=5, hist method</span>
+        <span>Val set used for early eval</span>
+      </div>
+      <div class="node-io">
+        <span class="in">← features_v1.pkl (train+val splits)</span><br/>
+        <span class="out">→ out/financial_model.pkl</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down big"><div class="stem"></div><div class="head"></div></div>
+
+  <!-- ════════════════════════════════════════
+       PHASE 1 — USER REQUEST ENTRY
+  ════════════════════════════════════════ -->
+  <div class="section-label">
+    <span class="num">PHASE 1</span>
+    <h2>User Request Entry</h2>
+    <div class="line"></div>
+  </div>
+  <div class="flow-row flow-row-2 gap">
+    <div class="node n-blue">
+      <span class="node-tag">React Frontend</span>
+      <div class="node-title">Vantage AI Intelligence Dashboard</div>
+      <div class="detail-list">
+        <span>Company ID input (e.g., AAPL, COMP_007)</span>
+        <span>Date input → POST /predict</span>
+        <span>Loading skeleton → KPI grid display</span>
+        <span>Revenue CI chart (Recharts)</span>
+        <span>Transcript drivers, signal attribution bars</span>
+      </div>
+      <div class="node-io">
+        <span class="out">→ { company_id, as_of_date, request_id }</span>
+      </div>
+    </div>
+    <div class="node n-blue">
+      <span class="node-tag">FastAPI — /predict</span>
+      <div class="node-title">REST API Endpoint</div>
+      <div class="detail-list">
+        <span>Validates PredictRequest schema (Pydantic)</span>
+        <span>Auto-generates UUID request_id if missing</span>
+        <span>CORS: allows localhost:5173</span>
+        <span>Returns 503 on orchestrator failure</span>
+        <span>Calls orchestrate() async</span>
+      </div>
+      <div class="node-io">
+        <span class="in">← POST { company_id, as_of_date }</span><br/>
+        <span class="out">→ Full JSON response</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down big"><div class="stem"></div><div class="head"></div></div>
+
+  <!-- ════════════════════════════════════════
+       PHASE 2 — ORCHESTRATOR DATA ROUTING
+  ════════════════════════════════════════ -->
+  <div class="section-label">
+    <span class="num">PHASE 2</span>
+    <h2>Orchestrator — Data Routing &amp; Source Selection</h2>
+    <div class="line"></div>
+  </div>
+
+  <div class="node n-indigo node-big gap">
+    <span class="node-tag">orchestrate.py</span>
+    <div class="node-title">Orchestrator — Master Controller</div>
+    <div class="flow-row flow-row-3" style="margin-top:14px;">
+      <div>
+        <div class="node-sub" style="color:#a5b4fc; font-weight:600; margin-bottom:6px;">① Data Source Decision</div>
+        <div class="detail-list">
+          <span>If company_id is a real ticker (no "COMP_" prefix)</span>
+          <span>Try yfinance → 8 quarters of quarterly financials</span>
+          <span>compute_features() for lag/rolling features</span>
+          <span>Fallback → Alpha Vantage news sentiment</span>
+          <span>Else → load from features_v1.pkl (synthetic)</span>
+        </div>
+      </div>
+      <div>
+        <div class="node-sub" style="color:#a5b4fc; font-weight:600; margin-bottom:6px;">② Transcript &amp; Peers</div>
+        <div class="detail-list">
+          <span>Synthetic: match company_id + quarter in .jsonl</span>
+          <span>Live: static placeholder text (gap!)</span>
+          <span>Peers: PEER_MAP[ticker] → yfinance fetch</span>
+          <span>Peer tickers: AAPL→MSFT/GOOGL/META etc.</span>
+          <span>No peer data for synthetic COMP_XXX IDs</span>
+        </div>
+      </div>
+      <div>
+        <div class="node-sub" style="color:#a5b4fc; font-weight:600; margin-bottom:6px;">③ Parallel Dispatch</div>
+        <div class="detail-list">
+          <span>asyncio.gather() — all 4 agents fire simultaneously</span>
+          <span>asyncio.wait_for() — 10s hard timeout per agent</span>
+          <span>Failed/timed-out agents added to degraded[]</span>
+          <span>Minimum 2 agents must succeed (else 503)</span>
+          <span>Confidence penalised: × 0.9^(num_degraded)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="degraded-note">
+    <strong>⚠ Degraded Mode:</strong> If any agent times out or throws, it returns a fallback output (confidence=0.5) and is added to <code>degraded_agents[]</code>. The orchestrator continues with remaining agents. If &lt;2 agents succeed, the entire request fails with <code>InsufficientDataError</code>.
+  </div>
+
+  <div class="arrow-down big"><div class="stem"></div><div class="head"></div></div>
+
+  <!-- ════════════════════════════════════════
+       PHASE 3 — PARALLEL AGENT EXECUTION
+  ════════════════════════════════════════ -->
+  <div class="section-label">
+    <span class="num">PHASE 3</span>
+    <h2>Parallel Agent Execution</h2>
+    <div class="line"></div>
+  </div>
+
+  <div class="parallel-indicator">
+    <div class="bar"></div>
+    <div class="badge">asyncio.gather() — All 4 agents run simultaneously in parallel</div>
+    <div class="bar r"></div>
+  </div>
+
+  <div class="flow-row flow-row-4 gap">
+
+    <!-- Agent 1 -->
+    <div class="node n-violet">
+      <span class="node-tag">Agent 1</span>
+      <div class="node-title">Transcript NLP Agent</div>
+      <span class="llm-chip">🦙 Groq llama-3.3-70b</span>
+      <span class="llm-chip">✦ Gemini 2.0 fallback</span>
+      <div class="node-io" style="margin-top:10px;">
+        <span class="in">IN: transcript_text, company_id, quarter</span>
+      </div>
+      <div class="detail-list" style="margin-top:8px;">
+        <span>Extract 5 key driver sentences</span>
+        <span>Sentiment score [-1, 1]</span>
+        <span>Mgmt confidence [0, 1]</span>
+        <span>Top 5 topics with scores</span>
+        <span>All numeric facts (rev, EBITDA, guidance)</span>
+        <span>Flag optimistic language + bad numbers</span>
+        <span>10s asyncio timeout</span>
+        <span>JSON cleanup + regex fallback parse</span>
+      </div>
+      <div class="node-io">
+        <span class="out">OUT: drivers, sentiment, topics, numeric_facts, confidence</span>
+        <br/><span class="warn">DEGRADED: confidence=0.5, empty lists</span>
+      </div>
+    </div>
+
+    <!-- Agent 2 -->
+    <div class="node n-cyan">
+      <span class="node-tag">Agent 2</span>
+      <div class="node-title">Financial Model Agent</div>
+      <span class="llm-chip">🌲 XGBoost (no LLM)</span>
+      <div class="node-io" style="margin-top:10px;">
+        <span class="in">IN: company_id, as_of_date, features dict</span>
+      </div>
+      <div class="detail-list" style="margin-top:8px;">
+        <span>Loads financial_model.pkl (6 models)</span>
+        <span>Predicts revenue p05/p50/p95</span>
+        <span>Predicts EBITDA p05/p50/p95</span>
+        <span>Enforces monotonicity: p05 ≤ p50 ≤ p95</span>
+        <span>Confidence = 1 - (p95-p05)/(2×p50)</span>
+        <span>Feature importance from p50 rev model (gain)</span>
+        <span>Top 5 features returned</span>
+      </div>
+      <div class="node-io">
+        <span class="out">OUT: revenue_forecast {p05,p50,p95}, ebitda_forecast, feature_importances, confidence</span>
+        <br/><span class="warn">DEGRADED: RuntimeError → caught by orchestrator</span>
+      </div>
+    </div>
+
+    <!-- Agent 3 -->
+    <div class="node n-amber">
+      <span class="node-tag">Agent 3</span>
+      <div class="node-title">News &amp; Macro Agent</div>
+      <span class="llm-chip">🦙 Groq llama-3.3-70b</span>
+      <span class="llm-chip">✦ Gemini 2.0 fallback</span>
+      <div class="node-io" style="margin-top:10px;">
+        <span class="in">IN: headlines[], macro_indicators {gdp_growth, interest_rate}</span>
+      </div>
+      <div class="detail-list" style="margin-top:8px;">
+        <span>Analyze news headlines + macro data</span>
+        <span>Returns macro_sentiment [-1,1]</span>
+        <span>Returns sector_outlook string</span>
+        <span>Returns risk_factors list</span>
+        <span>10s asyncio timeout</span>
+        <span>Headlines: live via Alpha Vantage or synthetic</span>
+      </div>
+      <div class="node-io">
+        <span class="out">OUT: macro_sentiment, sector_outlook, risk_factors, confidence</span>
+        <br/><span class="warn">DEGRADED: sentiment=0, empty risk_factors</span>
+      </div>
+    </div>
+
+    <!-- Agent 4 -->
+    <div class="node n-rose">
+      <span class="node-tag">Agent 4</span>
+      <div class="node-title">Competitor Agent</div>
+      <span class="llm-chip">🦙 Groq llama-3.3-70b</span>
+      <span class="llm-chip">✦ Gemini 2.0 fallback</span>
+      <div class="node-io" style="margin-top:10px;">
+        <span class="in">IN: peer_financials[], market_share_signals</span>
+      </div>
+      <div class="detail-list" style="margin-top:8px;">
+        <span>Benchmarks vs. peer companies</span>
+        <span>Computes revenue_delta &amp; margin_delta per peer</span>
+        <span>Returns relative_position_score [-1, 1]</span>
+        <span>Handles peer alias mapping robustly</span>
+        <span>Peers empty for synthetic COMP_XXX IDs</span>
+        <span>10s asyncio timeout</span>
+      </div>
+      <div class="node-io">
+        <span class="out">OUT: relative_position_score, peer_benchmarks[], confidence</span>
+        <br/><span class="warn">DEGRADED: score=0, empty benchmarks</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LLM Client Breakdown -->
+  <div class="arrow-down-label">
+    <div class="stem"></div>
+    <div class="lbl">All LLM agents call via LLMClient singleton</div>
+    <div class="stem2"></div>
+    <div class="head"></div>
+  </div>
+
+  <div class="node n-slate gap">
+    <span class="node-tag">llm_client.py — Singleton</span>
+    <div class="node-title">LLM Rotation &amp; Fallback Client</div>
+    <div class="flow-row flow-row-3">
+      <div>
+        <div class="node-sub" style="color:#94a3b8; font-weight:600; margin-bottom:4px;">Primary: Groq (Key Rotation)</div>
+        <div class="detail-list">
+          <span>Loads all GROQ_API_KEY* env vars</span>
+          <span>Round-robin rotation on 429 RateLimitError</span>
+          <span>AsyncGroq client, temp=0</span>
+          <span>Model: llama-3.3-70b-versatile</span>
+        </div>
+      </div>
+      <div>
+        <div class="node-sub" style="color:#94a3b8; font-weight:600; margin-bottom:4px;">Fallback: Gemini</div>
+        <div class="detail-list">
+          <span>Triggered if ALL Groq keys fail</span>
+          <span>GEMINI_API_KEY from .env</span>
+          <span>asyncio.to_thread (sync→async wrapper)</span>
+          <span>Model: gemini-2.0-flash, temp=0</span>
+        </div>
+      </div>
+      <div>
+        <div class="node-sub" style="color:#94a3b8; font-weight:600; margin-bottom:4px;">Error Path</div>
+        <div class="detail-list">
+          <span>Both fail → LLMUnavailableError raised</span>
+          <span>Each agent catches → degraded output</span>
+          <span>Orchestrator logs degraded_agents[]</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="merge-indicator">
+    <div class="bar"></div>
+    <div class="badge">All agent outputs merge → Ensembler</div>
+    <div class="bar r"></div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       PHASE 4 — ENSEMBLER
+  ════════════════════════════════════════ -->
+  <div class="section-label">
+    <span class="num">PHASE 4</span>
+    <h2>Ensembler — Final Signal Aggregation</h2>
+    <div class="line"></div>
+  </div>
+  <div class="node n-emerald node-big gap">
+    <span class="node-tag">EnsemblerAgent</span>
+    <div class="node-title">Chief Investment Officer Agent</div>
+    <div class="flow-row flow-row-3" style="margin-top:14px;">
+      <div>
+        <div class="node-sub" style="color:#6ee7b7; font-weight:600; margin-bottom:6px;">Input: All Agent Outputs (dict)</div>
+        <div class="detail-list">
+          <span>transcript_nlp output</span>
+          <span>financial_model output</span>
+          <span>news_macro output</span>
+          <span>competitor output</span>
+          <span>Only successfully completed agents included</span>
+        </div>
+      </div>
+      <div>
+        <div class="node-sub" style="color:#6ee7b7; font-weight:600; margin-bottom:6px;">LLM: CIO Synthesis Prompt</div>
+        <div class="detail-list">
+          <span>System: "You are a chief investment officer"</span>
+          <span>Returns final_forecast {rev_p50, ebitda_p50, revenue_ci}</span>
+          <span>Returns recommendation {action, rationale}</span>
+          <span>Actions: monitor / hold / buy / sell</span>
+          <span>Explanations list + human_review_required bool</span>
+        </div>
+      </div>
+      <div>
+        <div class="node-sub" style="color:#6ee7b7; font-weight:600; margin-bottom:6px;">Confidence Aggregation</div>
+        <div class="detail-list">
+          <span>Geometric mean of all agent confidences</span>
+          <span>Penalty: × 0.9^(num_degraded_agents)</span>
+          <span>Final combined_confidence clamped [0,1]</span>
+          <span>Baseline from financial_model as fallback</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down big"><div class="stem"></div><div class="head"></div></div>
+
+  <!-- ════════════════════════════════════════
+       PHASE 5 — RESPONSE + AUDIT
+  ════════════════════════════════════════ -->
+  <div class="section-label">
+    <span class="num">PHASE 5</span>
+    <h2>Response Assembly &amp; Persistence</h2>
+    <div class="line"></div>
+  </div>
+  <div class="flow-row flow-row-3 gap">
+    <div class="node n-blue">
+      <span class="node-tag">Orchestrator — Final Response</span>
+      <div class="node-title">Response Payload Assembly</div>
+      <div class="detail-list">
+        <span>request_id, trace_id, model_version</span>
+        <span>status: "success" or "partial"</span>
+        <span>latency_ms (wall clock)</span>
+        <span>result (EnsemblerOutput dict)</span>
+        <span>data_source: live_vantage / synthetic_store</span>
+        <span>explainability.confidence_breakdown per agent</span>
+        <span>agents_called[], degraded_agents[]</span>
+        <span>audit_link URL</span>
+      </div>
+    </div>
+    <div class="node n-slate">
+      <span class="node-tag">audit_trail.py</span>
+      <div class="node-title">SQLite Audit Persistence</div>
+      <div class="detail-list">
+        <span>aiosqlite — async writes</span>
+        <span>Table: requests (request_id PK)</span>
+        <span>Stores: trace_id, timestamp, status</span>
+        <span>Stores: agents_called, degraded_agents JSON</span>
+        <span>Stores: final_output_json, latency_ms</span>
+        <span>⚠ Not yet wired to API or UI</span>
+      </div>
+    </div>
+    <div class="node n-blue">
+      <span class="node-tag">React Frontend</span>
+      <div class="node-title">Dashboard Rendering</div>
+      <div class="detail-list">
+        <span>KPI cards: recommendation, confidence, latency</span>
+        <span>Revenue confidence interval chart</span>
+        <span>EBITDA forecast card</span>
+        <span>Signal Attribution bars (per agent %)</span>
+        <span>Transcript driver highlights (top 5)</span>
+        <span>Data source badge (live vs synthetic)</span>
+        <span>Status: success / partial / error</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down big"><div class="stem"></div><div class="head"></div></div>
+
+  <!-- ════════════════════════════════════════
+       DATA STORES SUMMARY
+  ════════════════════════════════════════ -->
+  <div class="section-label">
+    <span class="num">STORES</span>
+    <h2>Data Stores &amp; External Connections</h2>
+    <div class="line"></div>
+  </div>
+  <div class="flow-row flow-row-5 gap">
+    <div class="node n-slate">
+      <span class="node-tag">File Store</span>
+      <div class="node-title">out/</div>
+      <div class="detail-list">
+        <span>features_v1.pkl</span>
+        <span>financial_model.pkl</span>
+        <span>synthetic_financials.csv</span>
+        <span>sample_transcripts.jsonl</span>
+        <span>feature_manifest.json</span>
+      </div>
+    </div>
+    <div class="node n-slate">
+      <span class="node-tag">SQLite DB</span>
+      <div class="node-title">audit_trail.sqlite</div>
+      <div class="detail-list">
+        <span>Async aiosqlite writes</span>
+        <span>All prediction requests</span>
+        <span>Agent call history</span>
+        <span>⚠ No UI yet</span>
+      </div>
+    </div>
+    <div class="node n-slate">
+      <span class="node-tag">yfinance</span>
+      <div class="node-title">Real Market Data</div>
+      <div class="detail-list">
+        <span>Quarterly financials (8Q)</span>
+        <span>Revenue, EBITDA, Net Income, EPS</span>
+        <span>5 tickers w/ peer maps</span>
+        <span>Fallback if no live data</span>
+      </div>
+    </div>
+    <div class="node n-slate">
+      <span class="node-tag">Alpha Vantage</span>
+      <div class="node-title">News Sentiment API</div>
+      <div class="detail-list">
+        <span>Top 5 news headlines</span>
+        <span>Used for NewsMacroAgent</span>
+        <span>Requires ALPHA_VANTAGE_KEY</span>
+        <span>Falls back to synthetic headlines</span>
+      </div>
+    </div>
+    <div class="node n-slate">
+      <span class="node-tag">Groq / Gemini</span>
+      <div class="node-title">LLM APIs</div>
+      <div class="detail-list">
+        <span>Groq: GROQ_API_KEY_1..N</span>
+        <span>Gemini: GEMINI_API_KEY</span>
+        <span>Used by 3 of 4 agents</span>
+        <span>Key rotation on 429</span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════
+       LEGEND
+  ════════════════════════════════════════ -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(59,130,246,0.5)"></div>Frontend / API Layer</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(99,102,241,0.5)"></div>Orchestrator</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(139,92,246,0.5)"></div>LLM Agent (Transcript NLP)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(6,182,212,0.5)"></div>ML Agent (XGBoost)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(245,158,11,0.5)"></div>LLM Agent (News Macro)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(244,63,94,0.5)"></div>LLM Agent (Competitor)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(16,185,129,0.5)"></div>Ensembler</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(100,116,139,0.3); border:1px solid #475569"></div>Offline / Data Store</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(245,158,11,0.2); border:1px dashed rgba(245,158,11,0.4)"></div>Degraded / Gap</div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -34,7 +34,6 @@ def get_ticker_data(ticker_symbol: str) -> pd.DataFrame:
     df = df.sort_index(ascending=True)
     
     # Normalize column names
-    # yfinance indices can vary slightly, so we use a mapping with fallbacks
     mapping = {
         'Total Revenue': 'revenue',
         'EBITDA': 'ebitda',
@@ -49,64 +48,70 @@ def get_ticker_data(ticker_symbol: str) -> pd.DataFrame:
         if yf_col in available_cols:
             final_df[internal_col] = df[yf_col]
         else:
-            # Fallback for EBITDA if not directly available (EBIT + Depreciation & Amortization)
             if internal_col == 'ebitda' and 'EBIT' in available_cols:
-                # Depreciation and Amortization might be in Cash Flow or as a line item if lucky
-                # For MVP, we'll try to find normalized EBITDA or just use EBIT as fallback
                 if 'Normalized EBITDA' in available_cols:
                     final_df['ebitda'] = df['Normalized EBITDA']
                 else:
-                    final_df['ebitda'] = df['EBIT'] # Minimal fallback
+                    final_df['ebitda'] = df['EBIT']
             else:
                 final_df[internal_col] = 0.0
                 
-    # Basic data cleaning
     final_df = final_df.fillna(0.0)
     
-    # Convert to Million USD (yfinance returns absolute numbers)
     for col in ['revenue', 'ebitda', 'net_income']:
         final_df[col] = final_df[col] / 1e6
         
-    # Add metadata columns
     final_df['company_id'] = ticker_symbol
     final_df['date'] = final_df.index.strftime('%Y-%m-%d')
     
-    # Generate quarter string (e.g., 2024Q4)
     def to_quarter(dt):
         return f"{dt.year}Q{(dt.month-1)//3 + 1}"
     
     final_df['quarter'] = [to_quarter(d) for d in final_df.index]
     
-    # Compute EBITDA Margin
     final_df['ebitda_margin'] = final_df.apply(
         lambda row: row['ebitda'] / row['revenue'] if row['revenue'] != 0 else 0.0, 
         axis=1
     )
     
-    # Compute Revenue Growth (QoQ)
     final_df['revenue_growth'] = final_df['revenue'].pct_change(1).fillna(0.0)
     
-    # Add dummy/placeholder columns to match schema
-    final_df['sentiment_score'] = 0.0
-    final_df['topic_confidence'] = 1.0
-    final_df['transcript_excerpt'] = f"Real financial analysis for {ticker_symbol}."
-    final_df['scenario'] = 'neutral'
-    
-    # Explicitly add all expected scenario columns after get_dummies would run
-    # This is a bit of a hack because compute_features will call get_dummies again
-    # But if we provide the 'scenario' column, compute_features will handle it.
-    # The issue is compute_features in orchestrate.py runs on the 8-quarter df.
-    
-    final_df['guidance_flag'] = 0
-    final_df['restatement_flag'] = 0
+    # Add metadata and qualitative context
     final_df['seed'] = 0
     final_df['provenance_note'] = 'yfinance'
+    final_df['scenario'] = 'neutral'
     
-    # Return last 8 quarters if available
+    try:
+        info = ticker.info
+        summary = info.get('longBusinessSummary', 'No summary available.')
+        sector = info.get('sector', 'Unknown')
+        industry = info.get('industry', 'Unknown')
+        
+        final_df['sector'] = sector
+        final_df['industry'] = industry
+        
+        news = ticker.news
+        news_context = "\n".join([n['title'] for n in news[:5]]) if news else ""
+        
+        final_df['transcript_excerpt'] = (
+            f"BUSINESS SUMMARY:\n{summary}\n\n"
+            f"SECTOR: {sector}\nINDUSTRY: {industry}\n\n"
+            f"RECENT NEWS TITLES:\n{news_context}"
+        )
+    except Exception as e:
+        logger.warning(f"Failed to fetch enriched info for {ticker_symbol}: {e}")
+        final_df['transcript_excerpt'] = f"Real financial analysis context for {ticker_symbol}."
+        final_df['sector'] = 'Unknown'
+        final_df['industry'] = 'Unknown'
+
+    final_df['sentiment_score'] = 0.0
+    final_df['topic_confidence'] = 1.0
+    final_df['guidance_flag'] = 0
+    final_df['restatement_flag'] = 0
+    
     return final_df.tail(8)
 
 if __name__ == "__main__":
     test_ticker = "AAPL"
     data = get_ticker_data(test_ticker)
     print(data.head())
-    print(f"Columns: {data.columns.tolist()}")

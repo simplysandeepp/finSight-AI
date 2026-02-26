@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import uuid
 from .orchestrate import orchestrate
+from audit.audit_trail import init_db, get_audit_trail
 
 app = FastAPI(title="Multimodal Financial Advisor API")
 
@@ -22,19 +23,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
+
 class PredictRequest(BaseModel):
-    company_id: str = Field(..., example="COMP_007")
-    as_of_date: str = Field(..., example="2026-01-31")
-    request_id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
-    include_explainability: bool = True
+    company_id: str
+    as_of_date: str = "2024-12-31"
 
 @app.post("/predict")
 async def predict(request: PredictRequest):
     try:
-        response = await orchestrate(request.model_dump())
-        return response
+        result = await orchestrate(request.company_id, request.as_of_date)
+        return result
     except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audit")
+async def audit():
+    try:
+        return await get_audit_trail()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

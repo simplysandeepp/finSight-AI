@@ -8,6 +8,7 @@ class FinalForecast(BaseModel):
     revenue_p50: float
     ebitda_p50: float
     revenue_ci: List[float]
+    ebitda_ci: List[float]
 
 class Recommendation(BaseModel):
     action: str = Field(..., pattern="^(monitor|hold|buy|sell)$")
@@ -32,10 +33,16 @@ class EnsemblerAgent(BaseAgent):
         fm_out = input_data.agent_outputs.get("financial_model", {})
         base_rev = fm_out.get("revenue_forecast", {}).get("p50", 102.5)
         base_ebitda = fm_out.get("ebitda_forecast", {}).get("p50", 25.0)
-        base_ci = fm_out.get("revenue_forecast", {}).get("revenue_ci") or [base_rev * 0.9, base_rev * 1.1]
+        
+        # Robustly handle CI
+        rev_f = fm_out.get("revenue_forecast", {})
+        base_rev_ci = [rev_f.get("p05", base_rev * 0.9), rev_f.get("p95", base_rev * 1.1)]
+        
+        ebitda_f = fm_out.get("ebitda_forecast", {})
+        base_ebitda_ci = [ebitda_f.get("p05", base_ebitda * 0.9), ebitda_f.get("p95", base_ebitda * 1.1)]
 
         prompt = f"Agent Outputs: {input_data.agent_outputs}"
-        system_prompt = "You are a chief investment officer. Aggregate the agent findings and return a JSON matching the EnsemblerOutput schema. IMPORTANT: Return ONLY valid JSON."
+        system_prompt = "You are a chief investment officer. Aggregate the agent findings and return a JSON matching the EnsemblerOutput schema. Ensure you include both revenue_ci and ebitda_ci in final_forecast. IMPORTANT: Return ONLY valid JSON."
         
         try:
             response_text = await asyncio.wait_for(
@@ -70,7 +77,8 @@ class EnsemblerAgent(BaseAgent):
                 final_forecast=FinalForecast(
                     revenue_p50=float(final_forecast_data.get("revenue_p50", base_rev)),
                     ebitda_p50=float(final_forecast_data.get("ebitda_p50", base_ebitda)),
-                    revenue_ci=final_forecast_data.get("revenue_ci", base_ci)
+                    revenue_ci=final_forecast_data.get("revenue_ci", base_rev_ci),
+                    ebitda_ci=final_forecast_data.get("ebitda_ci", base_ebitda_ci)
                 ),
                 recommendation=Recommendation(
                     action=recommendation_data.get("action", "monitor"),
@@ -85,7 +93,12 @@ class EnsemblerAgent(BaseAgent):
             return EnsemblerOutput(
                 request_id=input_data.request_id,
                 confidence=1.0,
-                final_forecast=FinalForecast(revenue_p50=base_rev, ebitda_p50=base_ebitda, revenue_ci=base_ci),
+                final_forecast=FinalForecast(
+                    revenue_p50=base_rev, 
+                    ebitda_p50=base_ebitda, 
+                    revenue_ci=base_rev_ci,
+                    ebitda_ci=base_ebitda_ci
+                ),
                 recommendation=Recommendation(action="monitor", rationale="Stable growth and moderate sentiment."),
                 combined_confidence=0.85,
                 explanations=["Driven by strong revenue momentum", "Offset by macro uncertainty"],

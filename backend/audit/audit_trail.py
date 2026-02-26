@@ -43,3 +43,10 @@ async def persist_request(data: dict):
             json.dumps(data.get('result'))
         ))
         await db.commit()
+
+async def get_audit_trail(limit: int = 50):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM requests ORDER BY timestamp DESC LIMIT ?", (limit,)) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
