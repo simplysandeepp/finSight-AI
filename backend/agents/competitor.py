@@ -1,10 +1,5 @@
-"""
-agents/competitor.py
-====================
-Implements Section 2.4 of the design doc.
-Peer benchmarking.
-"""
-
+import json
+import asyncio
 from typing import List, Dict, Any
 from pydantic import Field, BaseModel
 from .base import BaseAgent, BaseAgentInput, BaseAgentOutput
@@ -27,9 +22,31 @@ class CompetitorAgent(BaseAgent):
         super().__init__("competitor")
 
     async def run(self, input_data: CompetitorInput) -> CompetitorOutput:
-        return CompetitorOutput(
-            request_id=input_data.request_id,
-            confidence=0.82,
-            relative_position_score=0.15,
-            peer_benchmarks=[PeerBenchmark(peer_id="COMP_002", revenue_delta=0.05, margin_delta=-0.01)]
-        )
+        prompt = f"Peer Financials: {input_data.peer_financials}\nSignals: {input_data.market_share_signals}"
+        system_prompt = "You are a competitive intelligence analyst. Analyze the data and return a JSON with 'relative_position_score' [-1, 1] and 'peer_benchmarks' list."
+        
+        try:
+            response_text = await asyncio.wait_for(
+                self.call_llm(prompt, system_prompt),
+                timeout=10.0
+            )
+            
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            
+            res_json = json.loads(response_text)
+            
+            return CompetitorOutput(
+                request_id=input_data.request_id,
+                confidence=0.8,
+                relative_position_score=res_json.get("relative_position_score", 0.0),
+                peer_benchmarks=[PeerBenchmark(**p) for p in res_json.get("peer_benchmarks", [])]
+            )
+        except Exception as e:
+            self.logger.error(f"Error in CompetitorAgent: {e}")
+            return CompetitorOutput(
+                request_id=input_data.request_id,
+                confidence=0.5,
+                relative_position_score=0.0,
+                peer_benchmarks=[]
+            )

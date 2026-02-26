@@ -2,7 +2,7 @@
 agents/transcript_nlp.py
 ========================
 Implements Section 2.1 of the design doc.
-Extracts drivers, numeric facts, sentiment, and topics from transcripts using Anthropic Claude.
+Extracts drivers, numeric facts, sentiment, and topics from transcripts using Groq (Primary) or Gemini (Fallback).
 """
 
 import os
@@ -10,8 +10,7 @@ import json
 import asyncio
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
-from anthropic import AsyncAnthropic
-from .base import BaseAgent, BaseAgentInput, BaseAgentOutput
+from .base import BaseAgent, BaseAgentInput, BaseAgentOutput, LLMUnavailableError
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,10 +32,10 @@ class Topic(BaseModel):
     score: float = Field(..., ge=0, le=1)
 
 class TranscriptNLPInput(BaseAgentInput):
-    company_id: str = Field(..., pattern=r"^COMP_\d{3}$")
+    company_id: str = Field(..., pattern=r"^[A-Z0-9._-]+$")
     date: str
-    quarter: str = Field(..., pattern=r"^\d{4}Q[1-4]$")
-    transcript_text: str = Field(..., min_length=100)
+    quarter: str = Field(..., pattern=r"^\d{4}Q[1-4]$|^\d{4}-\d{2}-\d{2}$")
+    transcript_text: str = Field(..., min_length=20)
 
 class TranscriptNLPOutput(BaseAgentOutput):
     drivers: List[DriverSentence]
@@ -45,10 +44,9 @@ class TranscriptNLPOutput(BaseAgentOutput):
     top_topics: List[Topic]
 
 class TranscriptNLPAgent(BaseAgent):
-    def __init__(self, model_name: str = "claude-3-5-sonnet-20240620"):
+    def __init__(self, model_name: str = "llama-3.3-70b-versatile"):
         super().__init__("transcript_nlp")
         self.model_name = model_name
-        self.client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", "DUMMY_KEY"))
 
     def _get_system_prompt(self) -> str:
         return (
@@ -67,19 +65,19 @@ class TranscriptNLPAgent(BaseAgent):
         
         try:
             # 10s asyncio timeout as per requirement
-            response = await asyncio.wait_for(
-                self.client.messages.create(
-                    model=self.model_name,
-                    max_tokens=2048,
-                    system=self._get_system_prompt(),
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0
-                ),
+            response_text = await asyncio.wait_for(
+                self.call_llm(prompt, self._get_system_prompt()),
                 timeout=10.0
             )
             
+            # Simple JSON cleanup in case of markdown wrapping
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+
             # Parse JSON from response
-            res_json = json.loads(response.content[0].text)
+            res_json = json.loads(response_text)
             
             return TranscriptNLPOutput(
                 request_id=input_data.request_id,
@@ -91,10 +89,13 @@ class TranscriptNLPAgent(BaseAgent):
             )
             
         except asyncio.TimeoutError:
-            self.logger.warning("Anthropic API timed out. Returning degraded output.")
+            self.logger.warning("LLM call timed out. Returning degraded output.")
             return self._get_degraded_output(input_data, "Timeout")
+        except LLMUnavailableError:
+            self.logger.error("LLM service unavailable. Returning degraded output.")
+            return self._get_degraded_output(input_data, "LLMUnavailable")
         except Exception as e:
-            self.logger.error(f"Error calling Anthropic API: {str(e)}")
+            self.logger.error(f"Error calling LLM: {str(e)}")
             return self._get_degraded_output(input_data, str(e))
 
     def _get_degraded_output(self, input_data: TranscriptNLPInput, reason: str) -> TranscriptNLPOutput:

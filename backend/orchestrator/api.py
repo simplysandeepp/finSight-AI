@@ -6,12 +6,21 @@ FastAPI REST endpoint for predictions.
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 import uuid
 from .orchestrate import orchestrate
 
 app = FastAPI(title="Multimodal Financial Advisor API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class PredictRequest(BaseModel):
     company_id: str = Field(..., example="COMP_007")

@@ -20,6 +20,7 @@ from agents.financial_model import FinancialModelAgent, FinancialModelInput
 from agents.news_macro import NewsMacroAgent, NewsMacroInput
 from agents.competitor import CompetitorAgent, CompetitorInput
 from agents.ensembler import EnsemblerAgent, EnsemblerInput
+from utils.alpha_vantage_client import AlphaVantageClient
 
 logger = Logger.bind(component="orchestrator")
 
@@ -42,37 +43,82 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
     
     logger.info(f"Orchestrating request {request_id} for {company_id} as of {as_of_date}")
     
-    # 1. Fetch data from feature store
-    if not FEATURES_PATH.exists():
-        raise FileNotFoundError("Feature store (features_v1.pkl) not found. Run feature store first.")
+    # Initialize Alpha Vantage Client
+    av_client = AlphaVantageClient()
+    live_data_available = False
     
-    with open(FEATURES_PATH, 'rb') as f:
-        feature_data = pickle.load(f)
+    features = {}
+    quarter = "Q4"
+    transcript_text = (
+        "Standard earnings transcript placeholder for multimodal analysis. "
+        "We are seeing strong growth in our core segments despite moderate headwinds in the supply chain. "
+        "Management remains optimistic about the second half of the year and expects margin expansion "
+        "as cost-cutting initiatives take full effect across the enterprise operations globally."
+    )
+    headlines = []
     
-    full_df = feature_data['full_featured']
-    company_row = full_df[(full_df['company_id'] == company_id) & (full_df['date'] == as_of_date)]
-    
-    if company_row.empty:
-        # Fallback: get the latest available row for this company if exact date not found
-        company_row = full_df[full_df['company_id'] == company_id].sort_values('date').tail(1)
-        if company_row.empty:
-            raise ValueError(f"Company {company_id} not found in feature store.")
-        logger.warning(f"Exact date {as_of_date} not found for {company_id}. Using latest: {company_row['date'].iloc[0]}")
+    # 1. Attempt Live Data Fetch (Phase 6)
+    if av_client.api_key and not company_id.startswith("COMP_"):
+        try:
+            logger.info(f"Attempting live data fetch for {company_id}")
+            overview = await av_client.get_company_overview(company_id)
+            income = await av_client.get_income_statement(company_id)
+            news = await av_client.get_news_sentiment(company_id)
+            
+            if overview and income:
+                live_data_available = True
+                # Normalize AV data to internal schema
+                # Just using simple mapping for MVP
+                latest_q = income.get("quarterlyReports", [{}])[0]
+                features = {
+                    "revenue": float(latest_q.get("totalRevenue", 0)) / 1e6,
+                    "ebitda": float(latest_q.get("ebitda", 0)) / 1e6,
+                    "net_income": float(latest_q.get("netIncome", 0)) / 1e6,
+                    "quarter": latest_q.get("fiscalDateEnding", "N/A"),
+                    "industry": overview.get("Industry", "N/A"),
+                    "sector": overview.get("Sector", "N/A")
+                }
+                quarter = features["quarter"]
+                headlines = [f["title"] for f in news.get("feed", [])[:5]]
+                logger.info("Live data successfully normalized.")
+        except Exception as e:
+            logger.warning(f"Live data fetch failed, falling back to synthetic: {e}")
 
-    features = company_row.iloc[0].to_dict()
-    quarter = company_row['quarter'].iloc[0]
-    
-    # 2. Fetch transcript
-    transcript_text = "Standard earnings transcript placeholder for multimodal analysis. We are seeing strong growth in our core segments despite moderate headwinds in the supply chain. Management remains optimistic about the second half of the year."
-    if TRANSCRIPTS_PATH.exists():
+    # 2. Fallback to feature store if live data unavailable
+    if not live_data_available:
+        if not FEATURES_PATH.exists():
+            raise FileNotFoundError("Feature store (features_v1.pkl) not found. Run feature store first.")
+        
+        with open(FEATURES_PATH, 'rb') as f:
+            feature_data = pickle.load(f)
+        
+        full_df = feature_data['full_featured']
+        company_row = full_df[(full_df['company_id'] == company_id) & (full_df['date'] == as_of_date)]
+        
+        if company_row.empty:
+            company_row = full_df[full_df['company_id'] == company_id].sort_values('date').tail(1)
+            if company_row.empty:
+                # Use a dummy system company if ID is unknown and synthetic is requested
+                company_row = full_df.sort_values('date').tail(1)
+                logger.warning(f"Company {company_id} unknown. Using global tail record.")
+            logger.warning(f"Exact date {as_of_date} not found. Using latest: {company_row['date'].iloc[0]}")
+
+        features = company_row.iloc[0].to_dict()
+        quarter = company_row['quarter'].iloc[0]
+        headlines = [f"Record profits for {company_id}", "Sector outlook neutral"]
+
+    # 3. Fetch transcript (with live fallback placeholder)
+    if TRANSCRIPTS_PATH.exists() and not live_data_available:
         with open(TRANSCRIPTS_PATH, 'r') as f:
             for line in f:
                 t_rec = json.loads(line)
                 if t_rec['company_id'] == company_id and t_rec['quarter'] == quarter:
                     transcript_text = t_rec['transcript_excerpt']
                     break
+    elif live_data_available:
+        transcript_text = f"Live analysis for {company_id} based on latest financial disclosures. The company operates in {features.get('industry')} sector."
 
-    # 3. Initialize agents
+    # 4. Initialize agents
     agents = {
         "transcript_nlp": TranscriptNLPAgent(),
         "financial_model": FinancialModelAgent(),
@@ -80,7 +126,7 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
         "competitor": CompetitorAgent()
     }
     
-    # 4. Prepare inputs
+    # 5. Prepare inputs
     inputs = {
         "transcript_nlp": TranscriptNLPInput(
             request_id=request_id, trace_id=trace_id, model_version="v1",
@@ -93,7 +139,7 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
         ),
         "news_macro": NewsMacroInput(
             request_id=request_id, trace_id=trace_id, model_version="v1",
-            headlines=[f"Record profits for {company_id}", "Sector outlook neutral"],
+            headlines=headlines,
             macro_indicators={"gdp_growth": 0.02, "interest_rate": 0.05}
         ),
         "competitor": CompetitorInput(
@@ -103,7 +149,7 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
         )
     }
     
-    # 5. Async gather with 10s hard timeout
+    # 6. Async gather with 10s hard timeout
     tasks = []
     agent_names = list(agents.keys())
     for name in agent_names:
@@ -113,21 +159,18 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
     
     degraded = []
     agent_outputs = {}
-    agent_latencies = {} # Mocked for now
     
     for name, res in zip(agent_names, results):
         if isinstance(res, Exception):
             logger.warning(f"Agent {name} failed or timed out: {res}")
             degraded.append(name)
-            # Use agent's own degraded output method if available, or a generic one
-            # For this MVP, we'll just skip them but track them
         else:
             agent_outputs[name] = res
     
     if len(agent_outputs) < 2:
         raise RuntimeError("InsufficientDataError: Fewer than 2 agents succeeded.")
 
-    # 6. Call Ensembler
+    # 7. Call Ensembler
     ensembler = EnsemblerAgent()
     ensembler_input = EnsemblerInput(
         request_id=request_id, trace_id=trace_id, model_version="v1",
@@ -135,8 +178,7 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
     )
     final_output = await ensembler.run(ensembler_input)
     
-    # 7. Recalculate combined confidence
-    # combined_confidence = geometric mean of all confidences * (0.9 ^ len(degraded_agents))
+    # 8. Recalculate combined confidence
     confidences = [v.confidence for v in agent_outputs.values()]
     base_conf = get_geometric_mean(confidences)
     combined_conf = base_conf * (0.9 ** len(degraded))
@@ -151,6 +193,7 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
         "status": "success" if not degraded else "partial",
         "latency_ms": latency_ms,
         "result": final_output.model_dump(),
+        "data_source": "live_vantage" if live_data_available else "synthetic_store",
         "explainability": {
             "confidence_breakdown": {k: v.confidence for k, v in agent_outputs.items()},
             "degraded": degraded
