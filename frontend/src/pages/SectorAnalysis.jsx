@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, TrendingUp } from 'lucide-react';
+import { Globe } from 'lucide-react';
 
 const SectorAnalysis = ({ data }) => {
     const macroData = data?.result?.macro_sentiment;
@@ -16,7 +16,7 @@ const SectorAnalysis = ({ data }) => {
                 <div className="glass-card rounded-[32px] p-12 flex flex-col items-center justify-center text-center space-y-4 border-dashed border-2 border-white/5">
                     <Globe className="text-zinc-700" size={48} />
                     <h4 className="text-lg font-bold text-zinc-400">Run a prediction first</h4>
-                    <p className="text-sm text-zinc-600 max-w-sm">Go to Dashboard, enter a Company ID, and click Analyze to load sector data here.</p>
+                    <p className="text-sm text-zinc-600 max-w-sm">Go to Dashboard, enter a Company ID, and click Analyze to load sector and macro data here.</p>
                 </div>
             )}
 

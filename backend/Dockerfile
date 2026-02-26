@@ -23,8 +23,11 @@ COPY out/ out/
 COPY config.yaml .
 COPY .env .
 
-# Environment variable for Anthropic API Key
-ENV ANTHROPIC_API_KEY=""
+# Environment variables for API Keys
+ENV GROQ_API_KEY_1=""
+ENV GROQ_API_KEY_2=""
+ENV GEMINI_API_KEY=""
+ENV ALPHA_VANTAGE_API_KEY=""
 
 # Expose port
 EXPOSE 8000

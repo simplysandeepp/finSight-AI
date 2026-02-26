@@ -72,7 +72,12 @@ const Dashboard = ({ data, error, recStyles, chartData }) => {
                     </div>
 
                     <div className="glass-card rounded-3xl p-6 flex flex-col justify-between h-40">
-                        <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Ensemble Confidence</span>
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Ensemble Confidence</span>
+                            <span className={`text-[8px] font-black px-2 py-1 rounded uppercase tracking-tighter ${data.data_source === 'live_vantage' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                                {data.data_source === 'live_vantage' ? 'LIVE' : 'SYNTHETIC'}
+                            </span>
+                        </div>
                         <div className="mt-4 space-y-3">
                             <div className="flex items-end justify-between">
                                 <span className="text-3xl font-black tracking-tighter">{(data.result.combined_confidence * 100).toFixed(0)}%</span>

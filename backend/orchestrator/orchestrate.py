@@ -22,6 +22,7 @@ from agents.news_macro import NewsMacroAgent, NewsMacroInput
 from agents.competitor import CompetitorAgent, CompetitorInput
 from agents.ensembler import EnsemblerAgent, EnsemblerInput
 from audit.audit_trail import persist_request
+from explainability.explainer import get_explanation
 from utils.alpha_vantage_client import AlphaVantageClient
 from data.yfinance_loader import get_ticker_data
 from features.feature_store import compute_features
@@ -279,6 +280,21 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
     combined_conf = base_conf * (0.9 ** len(degraded_agents))
     final_output.combined_confidence = float(np.clip(combined_conf, 0, 1))
     
+    # 9. Generate SHAP explanation
+    shap_data = []
+    try:
+        fm_agent = agents.get("financial_model")
+        if fm_agent and fm_agent.models:
+            import pandas as pd
+            feature_cols = fm_agent.models.get('feature_cols', [])
+            if feature_cols:
+                X_row = pd.DataFrame([{k: features.get(k, 0) for k in feature_cols}])
+                revenue_p50_model = fm_agent.models['models']['revenue'][0.5]
+                explanation = get_explanation(request_id, revenue_p50_model, X_row)
+                shap_data = [s.model_dump() for s in explanation.shap_values]
+    except Exception as e:
+        logger.warning(f"SHAP generation failed: {e}")
+    
     latency_ms = int((time.time() - start_time) * 1000)
     
     # Persist to audit DB (fire-and-forget, don't block response)
@@ -307,7 +323,8 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
         "data_source": "live_vantage" if live_data_available else "synthetic_store",
         "explainability": {
             "confidence_breakdown": {k: v.confidence for k, v in agent_outputs.items()},
-            "degraded": degraded_agents
+            "degraded": degraded_agents,
+            "shap_values": shap_data
         },
         "audit_link": f"https://audit.internal/{request_id}",
         "agents_called": list(agents.keys()),
