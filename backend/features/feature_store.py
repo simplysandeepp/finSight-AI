@@ -58,6 +58,12 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     logger.info("One-hot encoding scenario column")
     df = pd.get_dummies(df, columns=['scenario'], prefix='scenario')
     
+    # Ensure all expected scenario columns are present for the model
+    expected_scenarios = ['scenario_bear', 'scenario_bull', 'scenario_neutral']
+    for col in expected_scenarios:
+        if col not in df.columns:
+            df[col] = 0
+            
     # Drop rows with NaNs resulting from lags/rolling
     # We'll keep them for now and let the model handle or drop later, but the prompt says "zero nulls" in the check.
     # Actually, the check was for the raw CSV. Features WILL have nulls.

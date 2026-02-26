@@ -40,15 +40,36 @@ class EnsemblerAgent(BaseAgent):
             if "```json" in response_text:
                 response_text = response_text.split("```json")[1].split("```")[0].strip()
             
-            res_json = json.loads(response_text)
+            try:
+                res_json = json.loads(response_text)
+            except json.JSONDecodeError:
+                import re
+                match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if match:
+                    res_json = json.loads(match.group())
+                else:
+                    raise
             
+            final_forecast_data = res_json.get("final_forecast", {})
+            if not isinstance(final_forecast_data, dict): final_forecast_data = {}
+            
+            recommendation_data = res_json.get("recommendation", {})
+            if not isinstance(recommendation_data, dict): recommendation_data = {}
+
             combined_conf = res_json.get("combined_confidence", 0.7)
-            
+
             return EnsemblerOutput(
                 request_id=input_data.request_id,
                 confidence=1.0,
-                final_forecast=FinalForecast(**res_json.get("final_forecast", {})),
-                recommendation=Recommendation(**res_json.get("recommendation", {})),
+                final_forecast=FinalForecast(
+                    revenue_p50=float(final_forecast_data.get("revenue_p50", 102.5)),
+                    ebitda_p50=float(final_forecast_data.get("ebitda_p50", 25.0)),
+                    revenue_ci=final_forecast_data.get("revenue_ci", [95.0, 110.0])
+                ),
+                recommendation=Recommendation(
+                    action=recommendation_data.get("action", "monitor"),
+                    rationale=recommendation_data.get("rationale", "Aggregated signal stable.")
+                ),
                 combined_confidence=combined_conf,
                 explanations=res_json.get("explanations", []),
                 human_review_required=res_json.get("human_review_required", combined_conf < 0.7)

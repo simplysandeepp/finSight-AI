@@ -6,8 +6,8 @@ from .base import BaseAgent, BaseAgentInput, BaseAgentOutput
 
 class PeerBenchmark(BaseModel):
     peer_id: str
-    revenue_delta: float
-    margin_delta: float
+    revenue_delta: float = 0.0
+    margin_delta: float = 0.0
 
 class CompetitorInput(BaseAgentInput):
     peer_financials: List[Dict]

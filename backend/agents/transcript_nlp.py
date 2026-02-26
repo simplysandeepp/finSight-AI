@@ -77,15 +77,34 @@ class TranscriptNLPAgent(BaseAgent):
                 response_text = response_text.split("```")[1].split("```")[0].strip()
 
             # Parse JSON from response
-            res_json = json.loads(response_text)
+            try:
+                res_json = json.loads(response_text)
+            except json.JSONDecodeError:
+                # Attempt to find JSON-like structure if parsing fails
+                import re
+                match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if match:
+                    res_json = json.loads(match.group())
+                else:
+                    raise
+
+            # Sanitize inputs for Pydantic
+            drivers = res_json.get("drivers", [])
+            if isinstance(drivers, dict): drivers = []
             
+            numeric_facts = res_json.get("numeric_facts", [])
+            if isinstance(numeric_facts, dict): numeric_facts = []
+            
+            top_topics = res_json.get("top_topics", [])
+            if isinstance(top_topics, dict): top_topics = []
+
             return TranscriptNLPOutput(
                 request_id=input_data.request_id,
                 confidence=res_json.get("confidence", 0.9),
-                drivers=res_json.get("drivers", []),
-                numeric_facts=res_json.get("numeric_facts", []),
-                sentiment=res_json.get("sentiment", 0.0),
-                top_topics=res_json.get("top_topics", [])
+                drivers=drivers,
+                numeric_facts=numeric_facts,
+                sentiment=float(res_json.get("sentiment", 0.0)),
+                top_topics=top_topics
             )
             
         except asyncio.TimeoutError:
