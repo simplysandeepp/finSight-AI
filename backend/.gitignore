@@ -1,0 +1,11 @@
+# Backend specific gitignore
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+out/
+.env
+*.pkl
+*.jsonl
