@@ -1,0 +1,31 @@
+data:
+  seed: 42
+  n_companies: 40
+  n_quarters: 20
+  scenario_mix:
+    bull: 0.4
+    neutral: 0.4
+    bear: 0.2
+  restatement_rate: 0.02
+  mismatch_rate: 0.15
+  volatility_scale: 1.0
+  out_dir: "./out"
+
+model:
+  version: "bundle_v1_2026-02-26"
+  timeout_seconds: 10
+  min_agents_required: 2
+  confidence_discount: 0.9
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+
+evaluation:
+  acceptance_criteria:
+    mape_threshold: 0.08
+    pi_coverage_min: 0.88
+    latency_p95_ms: 5000
+    guidance_f1_min: 0.80
+    driver_precision_min: 0.75
