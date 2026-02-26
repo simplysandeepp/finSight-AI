@@ -210,9 +210,10 @@ async def orchestrate(request: Dict[str, Any]) -> Dict[str, Any]:
 
     # 7. Call Ensembler
     ensembler = EnsemblerAgent()
+    a_outputs = {k: v.model_dump() for k, v in agent_outputs.items()}
     ensembler_input = EnsemblerInput(
         request_id=request_id, trace_id=trace_id, model_version="v1",
-        agent_outputs={k: v.model_dump() for k, v in agent_outputs.items()}
+        agent_outputs=a_outputs
     )
     final_output = await ensembler.run(ensembler_input)
     

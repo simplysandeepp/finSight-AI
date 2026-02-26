@@ -28,8 +28,14 @@ class EnsemblerAgent(BaseAgent):
         super().__init__("ensembler")
 
     async def run(self, input_data: EnsemblerInput) -> EnsemblerOutput:
+        # 1. Calculate baselines upfront for robust fallback
+        fm_out = input_data.agent_outputs.get("financial_model", {})
+        base_rev = fm_out.get("revenue_forecast", {}).get("p50", 102.5)
+        base_ebitda = fm_out.get("ebitda_forecast", {}).get("p50", 25.0)
+        base_ci = fm_out.get("revenue_forecast", {}).get("revenue_ci") or [base_rev * 0.9, base_rev * 1.1]
+
         prompt = f"Agent Outputs: {input_data.agent_outputs}"
-        system_prompt = "You are a chief investment officer. Aggregate the agent findings and return a JSON matching the EnsemblerOutput schema."
+        system_prompt = "You are a chief investment officer. Aggregate the agent findings and return a JSON matching the EnsemblerOutput schema. IMPORTANT: Return ONLY valid JSON."
         
         try:
             response_text = await asyncio.wait_for(
@@ -62,9 +68,9 @@ class EnsemblerAgent(BaseAgent):
                 request_id=input_data.request_id,
                 confidence=1.0,
                 final_forecast=FinalForecast(
-                    revenue_p50=float(final_forecast_data.get("revenue_p50", 102.5)),
-                    ebitda_p50=float(final_forecast_data.get("ebitda_p50", 25.0)),
-                    revenue_ci=final_forecast_data.get("revenue_ci", [95.0, 110.0])
+                    revenue_p50=float(final_forecast_data.get("revenue_p50", base_rev)),
+                    ebitda_p50=float(final_forecast_data.get("ebitda_p50", base_ebitda)),
+                    revenue_ci=final_forecast_data.get("revenue_ci", base_ci)
                 ),
                 recommendation=Recommendation(
                     action=recommendation_data.get("action", "monitor"),
@@ -76,11 +82,10 @@ class EnsemblerAgent(BaseAgent):
             )
         except Exception as e:
             self.logger.error(f"Error in EnsemblerAgent: {e}")
-            # Maintain the original placeholder logic as fallback
             return EnsemblerOutput(
                 request_id=input_data.request_id,
                 confidence=1.0,
-                final_forecast=FinalForecast(revenue_p50=102.5, ebitda_p50=25.0, revenue_ci=[95.0, 110.0]),
+                final_forecast=FinalForecast(revenue_p50=base_rev, ebitda_p50=base_ebitda, revenue_ci=base_ci),
                 recommendation=Recommendation(action="monitor", rationale="Stable growth and moderate sentiment."),
                 combined_confidence=0.85,
                 explanations=["Driven by strong revenue momentum", "Offset by macro uncertainty"],

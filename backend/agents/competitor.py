@@ -36,11 +36,23 @@ class CompetitorAgent(BaseAgent):
             
             res_json = json.loads(response_text)
             
+            # Robust parsing for peer benchmarks
+            raw_peers = res_json.get("peer_benchmarks", [])
+            benchmarks = []
+            for p in raw_peers:
+                if isinstance(p, dict):
+                    # Try to map common aliases or just take what we have
+                    benchmarks.append(PeerBenchmark(
+                        peer_id=p.get("peer_id") or p.get("name") or "unknown",
+                        revenue_delta=float(p.get("revenue_delta") or p.get("revenue_diff") or 0.0),
+                        margin_delta=float(p.get("margin_delta") or p.get("margin_diff") or 0.0)
+                    ))
+
             return CompetitorOutput(
                 request_id=input_data.request_id,
                 confidence=0.8,
-                relative_position_score=res_json.get("relative_position_score", 0.0),
-                peer_benchmarks=[PeerBenchmark(**p) for p in res_json.get("peer_benchmarks", [])]
+                relative_position_score=float(res_json.get("relative_position_score", 0.0)),
+                peer_benchmarks=benchmarks
             )
         except Exception as e:
             self.logger.error(f"Error in CompetitorAgent: {e}")
