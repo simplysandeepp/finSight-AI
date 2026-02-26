@@ -6,6 +6,13 @@ const AuditTrail = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [search, setSearch] = useState('');
+
+    const filteredLogs = logs.filter(log =>
+        log.request_id?.toLowerCase().includes(search.toLowerCase()) ||
+        log.status?.toLowerCase().includes(search.toLowerCase()) ||
+        log.company_id?.toLowerCase().includes(search.toLowerCase())
+    );
 
     useEffect(() => {
         const fetchLogs = async () => {
@@ -30,7 +37,12 @@ const AuditTrail = () => {
                 </div>
                 <div className="flex bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-2 items-center gap-3">
                     <Search size={16} className="text-zinc-500" />
-                    <input className="bg-transparent border-none focus:ring-0 text-sm w-48 outline-none" placeholder="Search logs..." />
+                    <input 
+                        className="bg-transparent border-none focus:ring-0 text-sm w-48 outline-none" 
+                        placeholder="Search logs..." 
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
                 </div>
             </div>
 
@@ -54,13 +66,14 @@ const AuditTrail = () => {
                             <tr className="border-b border-zinc-800 bg-white/[0.02]">
                                 <th className="px-6 py-4 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Timestamp</th>
                                 <th className="px-6 py-4 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Request ID</th>
+                                <th className="px-6 py-4 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Company</th>
                                 <th className="px-6 py-4 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Status</th>
                                 <th className="px-6 py-4 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Latency</th>
                                 <th className="px-6 py-4 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Model</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-800/50">
-                            {logs.map((log) => (
+                            {filteredLogs.map((log) => (
                                 <tr key={log.request_id} className="hover:bg-white/[0.02] transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
@@ -72,6 +85,9 @@ const AuditTrail = () => {
                                         <span className="text-[10px] font-mono text-blue-400 bg-blue-400/10 px-2 py-1 rounded">{log.request_id.slice(0, 8)}...</span>
                                     </td>
                                     <td className="px-6 py-4">
+                                        <span className="text-xs font-mono text-zinc-400">{log.company_id || '—'}</span>
+                                    </td>
+                                    <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
                                             <div className={`w-1.5 h-1.5 rounded-full ${log.status === 'success' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                                             <span className="text-xs capitalize text-zinc-400">{log.status}</span>
@@ -81,9 +97,9 @@ const AuditTrail = () => {
                                     <td className="px-6 py-4 text-xs font-bold text-zinc-500">{log.model_version}</td>
                                 </tr>
                             ))}
-                            {logs.length === 0 && (
+                            {filteredLogs.length === 0 && (
                                 <tr>
-                                    <td colSpan="5" className="px-6 py-12 text-center text-zinc-500 text-sm">No audit logs found.</td>
+                                    <td colSpan="6" className="px-6 py-12 text-center text-zinc-500 text-sm">No audit logs found.</td>
                                 </tr>
                             )}
                         </tbody>

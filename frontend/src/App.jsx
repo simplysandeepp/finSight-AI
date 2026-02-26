@@ -88,8 +88,8 @@ const App = () => {
                                 element={<Dashboard data={data} error={error} recStyles={recStyles} chartData={chartData} />}
                             />
                             <Route path="/signals" element={<ActiveSignals />} />
-                            <Route path="/sector" element={<SectorAnalysis />} />
-                            <Route path="/peers" element={<PeerBenchmarking />} />
+                            <Route path="/sector" element={<SectorAnalysis data={data} />} />
+                            <Route path="/peers" element={<PeerBenchmarking data={data} />} />
                             <Route path="/audit" element={<AuditTrail />} />
                             <Route path="/configs" element={<Configurations />} />
                         </Routes>

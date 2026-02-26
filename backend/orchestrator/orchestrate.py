@@ -21,6 +21,7 @@ from agents.financial_model import FinancialModelAgent, FinancialModelInput
 from agents.news_macro import NewsMacroAgent, NewsMacroInput
 from agents.competitor import CompetitorAgent, CompetitorInput
 from agents.ensembler import EnsemblerAgent, EnsemblerInput
+from audit.audit_trail import persist_request
 from utils.alpha_vantage_client import AlphaVantageClient
 from data.yfinance_loader import get_ticker_data
 from features.feature_store import compute_features
@@ -169,6 +170,24 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
             except Exception as e:
                 logger.warning(f"Failed to fetch peer {pt}: {e}")
     
+    # Synthetic path: pick 2-3 random COMP peers from the feature store
+    if not live_data_available and not peer_financials:
+        try:
+            all_companies = full_df['company_id'].unique().tolist()
+            synthetic_peers = [c for c in all_companies if c != company_id][:3]
+            for peer_id in synthetic_peers:
+                peer_row = full_df[full_df['company_id'] == peer_id].sort_values('date').tail(1)
+                if not peer_row.empty:
+                    p = peer_row.iloc[0]
+                    peer_financials.append({
+                        "peer_id": peer_id,
+                        "revenue": float(p.get('revenue', 100)),
+                        "ebitda_margin": float(p.get('ebitda_margin', 0.2)),
+                        "revenue_growth": float(p.get('revenue_growth', 0.05))
+                    })
+        except Exception as e:
+            logger.warning(f"Synthetic peer fetch failed: {e}")
+    
     # 5. Initialize agents
     agents = {
         "transcript_nlp": TranscriptNLPAgent(),
@@ -261,6 +280,22 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
     final_output.combined_confidence = float(np.clip(combined_conf, 0, 1))
     
     latency_ms = int((time.time() - start_time) * 1000)
+    
+    # Persist to audit DB (fire-and-forget, don't block response)
+    try:
+        await persist_request({
+            "request_id": request_id,
+            "trace_id": trace_id,
+            "model_version": "bundle_v1",
+            "company_id": company_id,
+            "status": "success" if not degraded_agents else "partial",
+            "latency_ms": latency_ms,
+            "agents_called": list(agents.keys()),
+            "degraded_agents": degraded_agents,
+            "result": final_output.model_dump()
+        })
+    except Exception as e:
+        logger.warning(f"Audit persist failed: {e}")
     
     return {
         "request_id": request_id,

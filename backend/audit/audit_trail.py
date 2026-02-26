@@ -18,6 +18,7 @@ async def init_db():
                 trace_id TEXT,
                 timestamp TEXT,
                 model_version TEXT,
+                company_id TEXT,
                 status TEXT,
                 latency_ms INTEGER,
                 agents_called TEXT,
@@ -30,12 +31,13 @@ async def init_db():
 async def persist_request(data: dict):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
-            INSERT INTO requests VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO requests VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['request_id'],
             data.get('trace_id'),
             datetime.utcnow().isoformat(),
             data.get('model_version'),
+            data.get('company_id'),
             data.get('status'),
             data.get('latency_ms'),
             json.dumps(data.get('agents_called')),
