@@ -4,20 +4,29 @@
 
 @layer base {
   :root {
-    background-color: #0d0d0f;
+    background-color: #0a0a0b;
     color: #e4e4e7;
     color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   body {
     @apply m-0 antialiased bg-background text-zinc-100;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
+
+  /* Anchor offset for fixed nav */
+  [id] {
+    scroll-margin-top: 5rem;
+  }
 }
 
 @layer components {
   .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0, 0, 0, 0.37)];
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)];
   }
 
   .glass-card {
@@ -52,4 +61,10 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
+}
+
+/* Selection */
+::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: #fff;
 }
