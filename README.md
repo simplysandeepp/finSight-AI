@@ -249,6 +249,34 @@ persist_request() → SQLite
 JSON response → Frontend
 ```
 
+### Mermaid Architecture Overview
+
+```mermaid
+graph TD
+    User((User)) -->|Search Ticker| FE[React Frontend\nVite + Tailwind CSS]
+    FE -->|POST /api/predict| API[FastAPI Gateway\norchestrator/api.py]
+
+    subgraph "Backend Core"
+        API --> ORC[Orchestrator\norchestrate.py]
+        ORC -->|Real Ticker Path| YF[yFinance Loader\nyfinance_loader.py]
+        ORC -->|Synthetic Path| PKL[(features_v1.pkl\nPre-built Store)]
+
+        subgraph "Committee of Specialized Agents — asyncio.gather"
+            ORC -->|Transcript Text| A1[Transcript NLP Agent\nGroq LLaMA 3.3-70b]
+            ORC -->|Financial Features| A2[Financial Model Agent\nXGBoost Quantile Regression]
+            ORC -->|News Headlines + Macro| A3[News & Macro Agent\nGroq LLaMA 3.3-70b]
+            ORC -->|Peer Financials| A4[Competitor Agent\nGroq LLaMA 3.3-70b]
+        end
+
+        A1 & A2 & A3 & A4 -->|Agent Results JSON| ENS[CIO Ensembler Agent\nensembler.py]
+        ENS -->|Final Signal + Confidence| AUD[Audit Trail\naiosqlite]
+        AUD -->|Persist Async| DB[(audit_trail.sqlite)]
+    end
+
+    ENS -->|JSON Payload| API
+    API -->|Consolidated Response| FE
+```
+
 ---
 
 ## 5. Phase 0 — Offline Data & Training Pipeline
@@ -440,6 +468,17 @@ Output:
 ==================================================
 ```
 
+### Training Pipeline Flowchart
+
+```mermaid
+flowchart LR
+    subgraph "Phase 0 — Offline (Run Once)"
+        A["generator.py\n──────────\nGBM & AR1 Models\nBull / Neutral / Bear\n40 Companies × 20 Quarters"] -->|"synthetic_financials.csv\n800 rows, 17 cols\nsample_transcripts.jsonl"| B["feature_store.py\n──────────\nLag Features (1q/2q/4q)\nRolling Windows (4q)\nYoY / QoQ Growth\nTemporal Split 70/15/15"]
+        B -->|"features_v1.pkl\nfeature_manifest.json"| C["financial_model.py\n──────────\nXGBoost Quantile Regression\n6 Models: Revenue + EBITDA\n× P05 / P50 / P95"]
+        C -->|"financial_model.pkl"| D[("out/\n────\nAll ML Artifacts\nReady for Serving")]
+    end
+```
+
 ---
 
 ## 6. Phase 1 — User Request Entry
@@ -498,6 +537,30 @@ Incoming request: { company_id: "AAPL", as_of_date: "2026-01-31" }
               ▼       ▼      Use latest
          Use live  Fallback  available row
          features  to pkl    for that company
+```
+
+### Data Routing Flowchart
+
+```mermaid
+flowchart TD
+    REQ["Incoming Request\ncompany_id + as_of_date"] --> Q1{"company_id\nstarts with COMP_?"}
+
+    Q1 -->|YES — Synthetic| SYN["Load features_v1.pkl\nSynthetic Feature Store"]
+    Q1 -->|NO — Real Ticker| LIVE["Try yfinance\nLive Data Fetch"]
+
+    LIVE --> Q2{"Fetch\nSucceeded?"}
+    Q2 -->|YES| LIVE_FEAT["compute_features()\nLag + Rolling Windows\nOn-the-fly Engineering"]
+    Q2 -->|NO — Fallback| SYN
+
+    SYN --> DATE["Find matching row\nby company_id + date\n(nearest if exact missing)"]
+    LIVE_FEAT --> PEERS
+
+    DATE --> PEERS{"Real Ticker?"}
+    PEERS -->|YES| PEER_MAP["PEER_MAP Lookup\ne.g. AAPL → MSFT, GOOGL, META\nFetch each via yfinance"]
+    PEERS -->|NO| RAND_PEERS["Random COMP_XXX\nfrom synthetic dataset\n(3 peers)"]
+
+    PEER_MAP --> DISPATCH["asyncio.gather()\n4 Agents + 10s Timeout Each"]
+    RAND_PEERS --> DISPATCH
 ```
 
 ### Live Data Path (Real Tickers: AAPL, NVDA, etc.)
@@ -580,6 +643,23 @@ results = await asyncio.gather(
     competitor.run(competitor_input),
     return_exceptions=True  # don't crash if one fails
 )
+```
+
+### Parallel Agent Execution Diagram
+
+```mermaid
+flowchart LR
+    ORC["Orchestrator\norchestrate.py"] -->|"asyncio.gather()\nAll 4 simultaneously"| AG
+
+    subgraph AG["Committee — 10s Hard Timeout Each"]
+        A1["📝 Transcript NLP Agent\ntranscript_nlp.py\n──────────────────\nGroq LLaMA 3.3-70b\nGemini 2.0 fallback\n──────────────────\nDrivers · Sentiment\nNumeric Facts · Topics"]
+        A2["📊 Financial Model Agent\nfinancial_model.py\n──────────────────\nXGBoost Quantile\nNo LLM — Pure ML\n──────────────────\nP05 / P50 / P95\nRevenue + EBITDA"]
+        A3["🌐 News & Macro Agent\nnews_macro.py\n──────────────────\nGroq LLaMA 3.3-70b\nGemini 2.0 fallback\n──────────────────\nMacro Sentiment\nRisk Factors"]
+        A4["🏁 Competitor Agent\ncompetitor.py\n──────────────────\nGroq LLaMA 3.3-70b\nGemini 2.0 fallback\n──────────────────\nRevenue Δ · Margin Δ\nRelative Position Score"]
+    end
+
+    A1 & A2 & A3 & A4 -->|"Results or Degraded Fallback"| ENS["CIO Ensembler\nensembler.py"]
+    ENS -->|"BUY / HOLD / SELL / MONITOR\n+ Combined Confidence"| OUT["Final Signal"]
 ```
 
 ### Agent 1 — Transcript NLP Agent
@@ -790,6 +870,39 @@ All successful agent outputs (as JSON dict)
               │
               ▼
      Ensembler JSON Output (EnsemblerOutput)
+```
+
+### Consensus vs. Divergence Logic
+
+The CIO Ensembler doesn't simply average signals — it actively checks for **consensus vs. divergence** across the four agents before committing to a recommendation:
+
+| Signal Pattern | CIO Interpretation | Output |
+|---|---|---|
+| All 4 bullish | Strong alignment | **STRONG BUY** with high confidence |
+| 3 bullish, 1 bearish | Minor divergence | **BUY** with moderate confidence |
+| Financials great, Sentiment terrible | "Value Trap" risk detected | **HOLD** (downgraded) |
+| ML forecast bullish, Macro bearish | Macro headwind noted | **MONITOR** with caveats |
+| 2+ agents degraded | Insufficient signal | `human_review_required: true` |
+
+> **Example:** If the Financial Model Agent predicts strong revenue growth (+15%) but the News & Macro Agent detects rising interest rates as a sector headwind, the CIO notes this *divergence* in the `explanations` array and downgrades the signal from **BUY** to **HOLD**, explicitly citing "macro headwind overrides quantitative momentum."
+
+### CIO Ensembler Signal Flow
+
+```mermaid
+flowchart TD
+    IN["4 Agent JSON Results\n+ XGBoost Forecast"] --> CIO["CIO Ensembler LLM\nGroq LLaMA 3.3-70b"]
+
+    CIO --> CHK{"Consensus\nor Divergence?"}
+
+    CHK -->|"Strong Consensus\n(3-4 bullish)"| BUY["BUY / STRONG BUY\nHigh Confidence"]
+    CHK -->|"Mixed Signals\n(2-2 split)"| HOLD["HOLD / MONITOR\nModerate Confidence"]
+    CHK -->|"Divergence Detected\n(Value Trap, Macro Risk)"| DOWN["Downgraded Signal\n+ Risk Note in Explanations"]
+    CHK -->|"2+ Agents Degraded\nor Conflicting"| FLAG["human_review_required: true\nAmber Alert on Frontend"]
+
+    BUY & HOLD & DOWN --> CONF["Geometric Mean\nConfidence Aggregation\n0.9^n Degradation Penalty"]
+    FLAG --> CONF
+
+    CONF --> OUT["Final Output\nsignal · confidence · explanations\naudit_link"]
 ```
 
 ### Confidence Aggregation Formula
@@ -1091,6 +1204,34 @@ If < 2 agents succeed → raise RuntimeError("InsufficientDataError")
         │
         ▼
 FastAPI returns HTTP 500
+```
+
+### LLM Client Rotation Flowchart
+
+```mermaid
+flowchart TD
+    REQ["Agent LLM Request"] --> T1
+
+    subgraph "Tier 1 — Groq: Primary"
+        T1["GROQ_API_KEY_1\nLLaMA 3.3-70b-versatile\nTemperature = 0"] -->|"429 Rate Limit"| T1B["GROQ_API_KEY_2\n(Round-Robin Next Key)"]
+        T1B -->|"429 Rate Limit"| T1C["GROQ_API_KEY_N\n(All Keys Exhausted)"]
+    end
+
+    T1 -->|"✓ Success"| OK["Return LLM Response\nto Agent"]
+    T1B -->|"✓ Success"| OK
+    T1C -->|"All Groq Keys Failed"| T2
+
+    subgraph "Tier 2 — Gemini: Fallback"
+        T2["GEMINI_API_KEY\ngemini-2.0-flash\nasyncio.to_thread wrapper\nTemperature = 0"]
+    end
+
+    T2 -->|"✓ Success"| OK
+    T2 -->|"Failure / Timeout"| ERR["LLMUnavailableError"]
+
+    ERR --> DEG["Agent returns\nDegraded Fallback JSON\nconfidence = 0.5"]
+    DEG --> CHK{"Successful\nAgents ≥ 2?"}
+    CHK -->|"YES"| PART["status: partial\n0.9^n confidence penalty\nhuman_review_required: true"]
+    CHK -->|"NO"| HTTP["HTTP 500\nInsufficientDataError"]
 ```
 
 ---
