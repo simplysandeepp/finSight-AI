@@ -1,6 +1,6 @@
-// ================================================================
-// 🔷 FinSight AI — Ultimate Multi-Agent Financial Intelligence Dashboard
-// Single file implementation — All components, pages, and state management
+﻿// ================================================================
+// ðŸ”· FinSight AI â€” Ultimate Multi-Agent Financial Intelligence Dashboard
+// Single file implementation â€” All components, pages, and state management
 // ================================================================
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
@@ -25,7 +25,7 @@ import {
 } from 'recharts';
 
 // ================================================================
-// 📦 MOCK DATA — Demo mode initialization
+// ðŸ“¦ MOCK DATA â€” Demo mode initialization
 // ================================================================
 const MOCK_DATA = {
   request_id: "demo-req-001",
@@ -50,7 +50,7 @@ const MOCK_DATA = {
     },
     explanations: [
       "Revenue growth YoY of 6% exceeds sector median of 3.2%",
-      "EBITDA margin expanding from 28% → 31% signals operating leverage",
+      "EBITDA margin expanding from 28% â†’ 31% signals operating leverage",
       "Stable macro with neutral rate outlook reduces discount rate risk",
       "Peer positioning: above median in margin, below in absolute revenue scale"
     ],
@@ -122,7 +122,7 @@ const MOCK_DATA = {
 };
 
 // ================================================================
-// 🎨 UTILITY HOOKS & HELPERS
+// ðŸŽ¨ UTILITY HOOKS & HELPERS
 // ================================================================
 
 // Animated number counter hook
@@ -173,9 +173,9 @@ const formatCurrency = (value, unit = 'M') => {
 };
 
 // ================================================================
-// 🎯 ANIMATED CONFIDENCE RING COMPONENT
+// ðŸŽ¯ ANIMATED CONFIDENCE RING COMPONENT
 // ================================================================
-const ConfidenceRing = ({ value, size = 120, strokeWidth = 8, className = "" }) => {
+const ConfidenceRing = ({ value, size = 120, strokeWidth = 8, decimals = 1, className = "" }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (value * circumference);
@@ -227,7 +227,7 @@ const ConfidenceRing = ({ value, size = 120, strokeWidth = 8, className = "" }) 
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="text-center">
           <div className="text-2xl font-bold text-white">
-            {Math.round(value * 100)}%
+            {(value * 100).toFixed(decimals)}%
           </div>
           <div className="text-xs text-zinc-500 uppercase tracking-wider">
             CONFIDENCE
@@ -239,11 +239,11 @@ const ConfidenceRing = ({ value, size = 120, strokeWidth = 8, className = "" }) 
 };
 
 // ================================================================
-// 🚀 MAIN APP COMPONENT
+// ðŸš€ MAIN APP COMPONENT
 // ================================================================
 const App = () => {
   // ================================================================
-  // 🔧 STATE MANAGEMENT
+  // ðŸ”§ STATE MANAGEMENT
   // ================================================================
   
   // Core application state
@@ -296,7 +296,7 @@ const App = () => {
   }, [theme.accent]);
 
   // ================================================================
-  // 🔄 API FUNCTIONS
+  // ðŸ”„ API FUNCTIONS
   // ================================================================
   
   const handlePredict = async (e) => {
@@ -325,11 +325,11 @@ const App = () => {
   // Copy report functionality
   const copyReport = useCallback(() => {
     const report = `
-FinSight Ai — Analysis Report
+FinSight Ai â€” Analysis Report
 ==============================
 Company: ${companyId} | Date: ${asOfDate}
 Signal: ${data?.result?.recommendation?.action?.toUpperCase() || 'N/A'}
-Confidence: ${((data?.result?.combined_confidence || 0) * 100).toFixed(1)}%
+Confidence: ${((data?.result?.combined_confidence || 0) * 100).toFixed(theme.confDecimals)}%
 Revenue Forecast: ${formatCurrency(data?.result?.final_forecast?.revenue_p50, theme.currencyUnit)}
 EBITDA Forecast: ${formatCurrency(data?.result?.final_forecast?.ebitda_p50, theme.currencyUnit)}
 
@@ -347,7 +347,7 @@ Latency: ${data?.latency_ms || 0}ms
   }, [data, companyId, asOfDate, theme.currencyUnit]);
 
   // ================================================================
-  // 🎯 SIDEBAR COMPONENT
+  // ðŸŽ¯ SIDEBAR COMPONENT
   // ================================================================
   const Sidebar = () => {
     const navigate = useNavigate();
@@ -440,7 +440,7 @@ Latency: ${data?.latency_ms || 0}ms
   };
 
   // ================================================================
-  // 🔝 TOP NAVIGATION BAR COMPONENT  
+  // ðŸ” TOP NAVIGATION BAR COMPONENT  
   // ================================================================
   const TopBar = () => {
     const location = useLocation();
@@ -550,7 +550,7 @@ Latency: ${data?.latency_ms || 0}ms
   };
 
   // ================================================================
-  // 💫 LOADING ANIMATION OVERLAY
+  // ðŸ’« LOADING ANIMATION OVERLAY
   // ================================================================
   const LoadingOverlay = () => (
     <AnimatePresence>
@@ -628,7 +628,42 @@ Latency: ${data?.latency_ms || 0}ms
   }, [data]);
 
   // ================================================================
-  // 🎛 CUSTOMIZER DRAWER COMPONENT
+  // 🎯 SHARED HELPERS
+  // ================================================================
+  const getRecStyles = (action) => {
+    const actionLower = action?.toLowerCase() || '';
+    if (actionLower.includes('buy')) return { 
+      label: 'STRONG BUY', 
+      color: 'text-emerald-400', 
+      bg: 'bg-emerald-500/10', 
+      border: 'border-emerald-500/20',
+      glow: 'shadow-[0_0_40px_rgba(16,185,129,0.15)]'
+    };
+    if (actionLower.includes('sell')) return { 
+      label: 'SELL', 
+      color: 'text-rose-400', 
+      bg: 'bg-rose-500/10', 
+      border: 'border-rose-500/20',
+      glow: 'shadow-[0_0_40px_rgba(244,63,94,0.15)]'
+    };
+    if (actionLower.includes('hold')) return { 
+      label: 'HOLD', 
+      color: 'text-indigo-400', 
+      bg: 'bg-indigo-500/10', 
+      border: 'border-indigo-500/20',
+      glow: 'shadow-[0_0_40px_rgba(99,102,241,0.15)]'
+    };
+    return { 
+      label: 'MONITOR', 
+      color: 'text-amber-400', 
+      bg: 'bg-amber-500/10', 
+      border: 'border-amber-500/20',
+      glow: 'shadow-[0_0_40px_rgba(245,158,11,0.15)]'
+    };
+  };
+
+  // ================================================================
+  // ðŸŽ› CUSTOMIZER DRAWER COMPONENT
   // ================================================================
   const CustomizerDrawer = () => (
     <AnimatePresence>
@@ -699,6 +734,20 @@ Latency: ${data?.latency_ms || 0}ms
                     <option value="charcoal">Charcoal</option>
                   </select>
                 </div>
+
+                {/* Chart Style */}
+                <div className="mb-4">
+                  <label className="text-xs text-zinc-500 uppercase tracking-wider mb-2 block">Chart Style</label>
+                  <select
+                    value={theme.chartStyle}
+                    onChange={(e) => setTheme(prev => ({ ...prev, chartStyle: e.target.value }))}
+                    className="w-full bg-[#0a0a0b] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white"
+                  >
+                    <option value="gradient">Gradient Fill</option>
+                    <option value="solid">Solid Fill</option>
+                    <option value="outline">Outline Only</option>
+                  </select>
+                </div>
               </div>
 
               {/* Layout Controls */}
@@ -731,6 +780,44 @@ Latency: ${data?.latency_ms || 0}ms
                       <option value="spacious">Spacious</option>
                     </select>
                   </div>
+
+                  <div>
+                    <label className="text-xs text-zinc-500 uppercase tracking-wider mb-2 block">Forecast Chart Type</label>
+                    <select
+                      value={theme.chartType}
+                      onChange={(e) => setTheme(prev => ({ ...prev, chartType: e.target.value }))}
+                      className="w-full bg-[#0a0a0b] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white"
+                    >
+                      <option value="bar">Bar Chart</option>
+                      <option value="area">Area Chart</option>
+                      <option value="line">Line Chart</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-zinc-500 uppercase tracking-wider mb-2 block">KPI Cards</label>
+                    <div className="space-y-2">
+                      {[
+                        { key: 'signal', label: 'Signal' },
+                        { key: 'confidence', label: 'Confidence' },
+                        { key: 'revenue', label: 'Revenue' },
+                        { key: 'ebitda', label: 'EBITDA' }
+                      ].map(card => (
+                        <label key={card.key} className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={theme.kpiCards[card.key]}
+                            onChange={() => setTheme(prev => ({
+                              ...prev,
+                              kpiCards: { ...prev.kpiCards, [card.key]: !prev.kpiCards[card.key] }
+                            }))}
+                            className="w-4 h-4 rounded border-white/20 bg-zinc-800 accent-emerald-500"
+                          />
+                          <span className="text-sm text-zinc-300">{card.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -749,6 +836,19 @@ Latency: ${data?.latency_ms || 0}ms
                       <option value="M">Millions ($M)</option>
                       <option value="B">Billions ($B)</option>
                       <option value="raw">Raw Numbers</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-zinc-500 uppercase tracking-wider mb-2 block">Confidence Decimals</label>
+                    <select
+                      value={theme.confDecimals}
+                      onChange={(e) => setTheme(prev => ({ ...prev, confDecimals: Number(e.target.value) }))}
+                      className="w-full bg-[#0a0a0b] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white"
+                    >
+                      <option value={0}>0 decimals</option>
+                      <option value={1}>1 decimal</option>
+                      <option value={2}>2 decimals</option>
                     </select>
                   </div>
 
@@ -779,6 +879,38 @@ Latency: ${data?.latency_ms || 0}ms
                       }`} />
                     </button>
                   </div>
+                </div>
+              </div>
+
+              {/* Section Visibility */}
+              <div className="mb-6">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-400 mb-3">Show / Hide Sections</h3>
+                <div className="space-y-2">
+                  {[
+                    { key: 'drivers', label: 'Reasoning Chain' },
+                    { key: 'topics', label: 'Topic Heatmap' },
+                    { key: 'metadata', label: 'System Metadata' },
+                    { key: 'macro', label: 'Macro & News' },
+                    { key: 'peers', label: 'Peer Snapshot' },
+                    { key: 'features', label: 'Feature Importance' }
+                  ].map(section => (
+                    <div key={section.key} className="flex items-center justify-between">
+                      <label className="text-xs text-zinc-500 uppercase tracking-wider">{section.label}</label>
+                      <button
+                        onClick={() => setTheme(prev => ({
+                          ...prev,
+                          showSections: { ...prev.showSections, [section.key]: !prev.showSections[section.key] }
+                        }))}
+                        className={`w-10 h-6 rounded-full transition-colors ${
+                          theme.showSections[section.key] ? 'bg-emerald-500' : 'bg-zinc-600'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
+                          theme.showSections[section.key] ? 'translate-x-5' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -813,49 +945,16 @@ Latency: ${data?.latency_ms || 0}ms
   );
 
   // ================================================================
-  // 📊 DASHBOARD PAGE - THE CENTERPIECE
+  // ðŸ“Š DASHBOARD PAGE - THE CENTERPIECE
   // ================================================================
   const DashboardPage = () => {
-    // Helper function for recommendation styles
-    const getRecStyles = (action) => {
-      const actionLower = action?.toLowerCase() || '';
-      if (actionLower.includes('buy')) return { 
-        label: 'STRONG BUY', 
-        color: 'text-emerald-400', 
-        bg: 'bg-emerald-500/10', 
-        border: 'border-emerald-500/20',
-        glow: 'shadow-[0_0_40px_rgba(16,185,129,0.15)]'
-      };
-      if (actionLower.includes('sell')) return { 
-        label: 'SELL', 
-        color: 'text-rose-400', 
-        bg: 'bg-rose-500/10', 
-        border: 'border-rose-500/20',
-        glow: 'shadow-[0_0_40px_rgba(244,63,94,0.15)]'
-      };
-      if (actionLower.includes('hold')) return { 
-        label: 'HOLD', 
-        color: 'text-indigo-400', 
-        bg: 'bg-indigo-500/10', 
-        border: 'border-indigo-500/20',
-        glow: 'shadow-[0_0_40px_rgba(99,102,241,0.15)]'
-      };
-      return { 
-        label: 'MONITOR', 
-        color: 'text-amber-400', 
-        bg: 'bg-amber-500/10', 
-        border: 'border-amber-500/20',
-        glow: 'shadow-[0_0_40px_rgba(245,158,11,0.15)]'
-      };
-    };
-
     const recStyles = getRecStyles(data?.result?.recommendation?.action);
     const confidence = data?.result?.combined_confidence || 0;
     const revenueP50 = useCountUp(data?.result?.final_forecast?.revenue_p50 || 0, 1000, 200);
     const ebitdaP50 = useCountUp(data?.result?.final_forecast?.ebitda_p50 || 0, 1000, 400);
 
     return (
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         {/* Alert Banner */}
         {data?.result?.human_review_required && (
           <motion.div
@@ -865,9 +964,9 @@ Latency: ${data?.latency_ms || 0}ms
           >
             <AlertTriangle className="w-5 h-5 text-amber-400 animate-pulse" />
             <div>
-              <div className="font-medium text-amber-400">⚠ Escalation Triggered — Human Verification Required</div>
+              <div className="font-medium text-amber-400">âš  Escalation Triggered â€” Human Verification Required</div>
               <div className="text-sm text-amber-400/80">
-                Confidence: {(confidence * 100).toFixed(1)}% | 
+                Confidence: {(confidence * 100).toFixed(theme.confDecimals)}% | 
                 Degraded agents: {data?.degraded_agents?.join(', ') || 'None'}
               </div>
             </div>
@@ -878,7 +977,7 @@ Latency: ${data?.latency_ms || 0}ms
         )}
 
         {/* Hero KPI Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 min-w-0">
           {/* Signal Card */}
           {theme.kpiCards.signal && (
             <motion.div
@@ -901,7 +1000,7 @@ Latency: ${data?.latency_ms || 0}ms
               transition={{ duration: 0.4, delay: 0.08 }}
               className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6 flex items-center justify-center"
             >
-              <ConfidenceRing value={confidence} size={100} />
+              <ConfidenceRing value={confidence} size={100} decimals={theme.confDecimals} />
             </motion.div>
           )}
 
@@ -918,7 +1017,18 @@ Latency: ${data?.latency_ms || 0}ms
                 {formatCurrency(revenueP50, theme.currencyUnit)}
               </div>
               <div className="text-sm text-zinc-400 mt-2">
-                CI: [{formatCurrency(data?.result?.final_forecast?.revenue_ci?.[0], theme.currencyUnit)} – {formatCurrency(data?.result?.final_forecast?.revenue_ci?.[1], theme.currencyUnit)}]
+                CI: [{formatCurrency(data?.result?.final_forecast?.revenue_ci?.[0], theme.currencyUnit)} â€“ {formatCurrency(data?.result?.final_forecast?.revenue_ci?.[1], theme.currencyUnit)}]
+              </div>
+              <div className="mt-2 relative h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <motion.div
+                  className="absolute top-0 h-full bg-gradient-to-r from-emerald-500/40 to-emerald-500/80 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 0.8, delay: 0.5 }}
+                />
+                <div className="absolute top-0 h-full w-0.5 bg-white" style={{
+                  left: `${((data?.result?.final_forecast?.revenue_p50 - (data?.result?.final_forecast?.revenue_ci?.[0] || 0)) / ((data?.result?.final_forecast?.revenue_ci?.[1] || 1) - (data?.result?.final_forecast?.revenue_ci?.[0] || 0))) * 100}%`
+                }} />
               </div>
             </motion.div>
           )}
@@ -936,7 +1046,18 @@ Latency: ${data?.latency_ms || 0}ms
                 {formatCurrency(ebitdaP50, theme.currencyUnit)}
               </div>
               <div className="text-sm text-zinc-400 mt-2">
-                CI: [{formatCurrency(data?.result?.final_forecast?.ebitda_ci?.[0], theme.currencyUnit)} – {formatCurrency(data?.result?.final_forecast?.ebitda_ci?.[1], theme.currencyUnit)}]
+                CI: [{formatCurrency(data?.result?.final_forecast?.ebitda_ci?.[0], theme.currencyUnit)} â€“ {formatCurrency(data?.result?.final_forecast?.ebitda_ci?.[1], theme.currencyUnit)}]
+              </div>
+              <div className="mt-2 relative h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <motion.div
+                  className="absolute top-0 h-full bg-gradient-to-r from-blue-500/40 to-blue-500/80 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 0.8, delay: 0.6 }}
+                />
+                <div className="absolute top-0 h-full w-0.5 bg-white" style={{
+                  left: `${((data?.result?.final_forecast?.ebitda_p50 - (data?.result?.final_forecast?.ebitda_ci?.[0] || 0)) / ((data?.result?.final_forecast?.ebitda_ci?.[1] || 1) - (data?.result?.final_forecast?.ebitda_ci?.[0] || 0))) * 100}%`
+                }} />
               </div>
             </motion.div>
           )}
@@ -945,13 +1066,13 @@ Latency: ${data?.latency_ms || 0}ms
         {/* Main Analysis Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Charts and Analysis */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 min-w-0">
             {/* Forecast Visualization */}
             <motion.div
               initial={theme.animate ? { opacity: 0, y: 20 } : {}}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.32 }}
-              className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6"
+              className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6 overflow-hidden"
             >
               <h3 className="text-lg font-bold text-white mb-4">Probabilistic Forecast</h3>
               <div className="h-64">
@@ -967,14 +1088,44 @@ Latency: ${data?.latency_ms || 0}ms
                     <XAxis dataKey="name" stroke="#71717a" />
                     <YAxis stroke="#71717a" />
                     <Tooltip 
-                      contentStyle={{
-                        background: '#111113',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: '12px',
-                        color: '#fff'
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0]?.payload;
+                        return (
+                          <div className="bg-[#111113] border border-white/[0.06] rounded-xl p-3 text-sm shadow-xl">
+                            <div className="font-bold text-white mb-1">{d?.name}</div>
+                            <div className="text-emerald-400">P50: {formatCurrency(d?.p50, theme.currencyUnit)}</div>
+                            <div className="text-amber-400">P05: {formatCurrency(d?.p05, theme.currencyUnit)}</div>
+                            <div className="text-amber-400">P95: {formatCurrency(d?.p95, theme.currencyUnit)}</div>
+                          </div>
+                        );
                       }}
                     />
-                    <Bar dataKey="p50" fill="url(#revenueGradient)" />
+                    {theme.chartType === 'area' ? (
+                      <Area
+                        dataKey="p50"
+                        fill={theme.chartStyle === 'outline' ? 'transparent' : (theme.chartStyle === 'solid' ? accentColors.hex : 'url(#revenueGradient)')}
+                        stroke={accentColors.hex}
+                        strokeWidth={theme.chartStyle === 'outline' ? 2 : 1}
+                        isAnimationActive={theme.animate}
+                      />
+                    ) : theme.chartType === 'line' ? (
+                      <Line
+                        dataKey="p50"
+                        stroke={accentColors.hex}
+                        strokeWidth={2}
+                        dot={{ fill: accentColors.hex, r: 4 }}
+                        isAnimationActive={theme.animate}
+                      />
+                    ) : (
+                      <Bar
+                        dataKey="p50"
+                        fill={theme.chartStyle === 'outline' ? 'transparent' : (theme.chartStyle === 'solid' ? accentColors.hex : 'url(#revenueGradient)')}
+                        stroke={theme.chartStyle === 'outline' ? accentColors.hex : undefined}
+                        strokeWidth={theme.chartStyle === 'outline' ? 2 : 0}
+                        isAnimationActive={theme.animate}
+                      />
+                    )}
                     <ReferenceLine y={data?.result?.final_forecast?.revenue_ci?.[0]} stroke="#f59e0b" strokeDasharray="2 2" />
                     <ReferenceLine y={data?.result?.final_forecast?.revenue_ci?.[1]} stroke="#f59e0b" strokeDasharray="2 2" />
                   </ComposedChart>
@@ -990,7 +1141,7 @@ Latency: ${data?.latency_ms || 0}ms
                 transition={{ duration: 0.4, delay: 0.4 }}
                 className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6"
               >
-                <h3 className="text-lg font-bold text-white mb-4">CIO Synthesis — Reasoning Chain</h3>
+                <h3 className="text-lg font-bold text-white mb-4">CIO Synthesis â€” Reasoning Chain</h3>
                 <div className="space-y-3">
                   {data?.result?.explanations?.map((explanation, index) => (
                     <motion.div
@@ -1003,7 +1154,10 @@ Latency: ${data?.latency_ms || 0}ms
                       <div className={`w-6 h-6 rounded-full ${accentColors.bg} ${accentColors.text} flex items-center justify-center text-xs font-bold`}>
                         {index + 1}
                       </div>
-                      <div className="text-sm text-zinc-300">{explanation}</div>
+                      <div className="flex-1 text-sm text-zinc-300">{explanation}</div>
+                      {data?.result?.agent_outputs?.transcript_nlp?.drivers?.[index]?.mismatch_flag && (
+                        <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" title="Mismatch detected" />
+                      )}
                     </motion.div>
                   ))}
                 </div>
@@ -1022,7 +1176,7 @@ Latency: ${data?.latency_ms || 0}ms
                 <div className="space-y-3">
                   {data?.result?.agent_outputs?.transcript_nlp?.top_topics?.map((topic, index) => (
                     <div key={index} className="flex items-center space-x-3">
-                      <div className="w-24 text-sm text-zinc-400 capitalize">
+                      <div className="w-24 text-sm text-zinc-400 capitalize truncate" title={topic.topic.replace('_', ' ')}>
                         {topic.topic.replace('_', ' ')}
                       </div>
                       <div className="flex-1 bg-zinc-800 rounded-full h-2">
@@ -1044,7 +1198,7 @@ Latency: ${data?.latency_ms || 0}ms
           </div>
 
           {/* Right Column - Agent Attribution & Metadata */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0">
             {/* Agent Confidence Breakdown */}
             <motion.div
               initial={theme.animate ? { opacity: 0, y: 20 } : {}}
@@ -1082,7 +1236,7 @@ Latency: ${data?.latency_ms || 0}ms
                             />
                           </div>
                           <span className="text-xs text-zinc-500 tabular-nums w-10">
-                            {(confidence * 100).toFixed(0)}%
+                            {(confidence * 100).toFixed(theme.confDecimals)}%
                           </span>
                           {isDegraded && (
                             <span className="px-1 py-0.5 bg-rose-500/20 text-rose-400 text-xs rounded">
@@ -1113,7 +1267,7 @@ Latency: ${data?.latency_ms || 0}ms
               </div>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs text-zinc-500 uppercase tracking-wider">Signal Strength</span>
-                <span className="text-sm font-bold text-white">{(confidence * 100).toFixed(1)}%</span>
+                <span className="text-sm font-bold text-white">{(confidence * 100).toFixed(theme.confDecimals)}%</span>
               </div>
               <div className="w-full bg-zinc-800 rounded-full h-2 mb-4">
                 <motion.div
@@ -1124,7 +1278,7 @@ Latency: ${data?.latency_ms || 0}ms
                 />
               </div>
               <button className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
-                Open Audit Trail →
+                Open Audit Trail â†’
               </button>
             </motion.div>
 
@@ -1192,8 +1346,8 @@ Latency: ${data?.latency_ms || 0}ms
                     <span className="text-sm text-zinc-400">News Sentiment</span>
                     <div className="flex items-center space-x-2">
                       <span className="text-lg">
-                        {(data?.result?.agent_outputs?.news_macro?.news_sentiment || 0) > 0.6 ? '😊' :
-                         (data?.result?.agent_outputs?.news_macro?.news_sentiment || 0) > 0.4 ? '😐' : '😟'}
+                        {(data?.result?.agent_outputs?.news_macro?.news_sentiment || 0) > 0.6 ? 'ðŸ˜Š' :
+                         (data?.result?.agent_outputs?.news_macro?.news_sentiment || 0) > 0.4 ? 'ðŸ˜' : 'ðŸ˜Ÿ'}
                       </span>
                       <span className="text-sm text-zinc-400">
                         {(data?.result?.agent_outputs?.news_macro?.news_sentiment || 0) > 0.6 ? 'Positive' :
@@ -1300,19 +1454,172 @@ Latency: ${data?.latency_ms || 0}ms
                     onClick={() => window.open(data?.audit_link, '_blank')}
                     className="w-full mt-4 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-sm hover:bg-emerald-500/20 transition-colors"
                   >
-                    View Full Audit →
+                    View Full Audit â†’
                   </button>
                 </div>
               </motion.div>
             )}
           </div>
         </div>
+
+        {/* Section D — Secondary Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* D1 — Forecast Confidence Interval Visualization */}
+          <motion.div
+            initial={theme.animate ? { opacity: 0, y: 20 } : {}}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.92 }}
+            className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6 overflow-hidden"
+          >
+            <h3 className="text-lg font-bold text-white mb-4">Probabilistic Forecast Bands</h3>
+            <div className="space-y-6">
+              {/* Revenue CI */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">REVENUE CI</div>
+                <div className="relative h-8 bg-zinc-800 rounded-full overflow-hidden">
+                  {(() => {
+                    const revForecast = data?.result?.agent_outputs?.financial_model?.revenue_forecast;
+                    const p05 = revForecast?.p05 || 0;
+                    const p50 = revForecast?.p50 || 0;
+                    const p95 = revForecast?.p95 || 0;
+                    const range = p95 - p05 || 1;
+                    const leftPct = 10;
+                    const rightPct = 90;
+                    const midPct = leftPct + ((p50 - p05) / range) * (rightPct - leftPct);
+                    return (
+                      <>
+                        <motion.div
+                          className="absolute top-0 h-full bg-gradient-to-r from-emerald-500/30 to-emerald-500/10 rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${rightPct - leftPct}%` }}
+                          style={{ left: `${leftPct}%` }}
+                          transition={{ duration: 0.8, delay: 1 }}
+                        />
+                        <div className="absolute top-0 h-full w-0.5 bg-amber-400" style={{ left: `${leftPct}%` }} />
+                        <div className="absolute top-0 h-full w-1 bg-emerald-400" style={{ left: `${midPct}%` }} />
+                        <div className="absolute top-0 h-full w-0.5 bg-amber-400" style={{ left: `${rightPct}%` }} />
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="flex justify-between mt-1 text-xs text-zinc-500">
+                  <span>P05: {formatCurrency(data?.result?.agent_outputs?.financial_model?.revenue_forecast?.p05, theme.currencyUnit)}</span>
+                  <span className="text-emerald-400 font-bold">P50: {formatCurrency(data?.result?.agent_outputs?.financial_model?.revenue_forecast?.p50, theme.currencyUnit)}</span>
+                  <span>P95: {formatCurrency(data?.result?.agent_outputs?.financial_model?.revenue_forecast?.p95, theme.currencyUnit)}</span>
+                </div>
+              </div>
+              {/* EBITDA CI */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">EBITDA CI</div>
+                <div className="relative h-8 bg-zinc-800 rounded-full overflow-hidden">
+                  {(() => {
+                    const ebForecast = data?.result?.agent_outputs?.financial_model?.ebitda_forecast;
+                    const p05 = ebForecast?.p05 || 0;
+                    const p50 = ebForecast?.p50 || 0;
+                    const p95 = ebForecast?.p95 || 0;
+                    const range = p95 - p05 || 1;
+                    const leftPct = 10;
+                    const rightPct = 90;
+                    const midPct = leftPct + ((p50 - p05) / range) * (rightPct - leftPct);
+                    return (
+                      <>
+                        <motion.div
+                          className="absolute top-0 h-full bg-gradient-to-r from-blue-500/30 to-blue-500/10 rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${rightPct - leftPct}%` }}
+                          style={{ left: `${leftPct}%` }}
+                          transition={{ duration: 0.8, delay: 1.1 }}
+                        />
+                        <div className="absolute top-0 h-full w-0.5 bg-amber-400" style={{ left: `${leftPct}%` }} />
+                        <div className="absolute top-0 h-full w-1 bg-blue-400" style={{ left: `${midPct}%` }} />
+                        <div className="absolute top-0 h-full w-0.5 bg-amber-400" style={{ left: `${rightPct}%` }} />
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="flex justify-between mt-1 text-xs text-zinc-500">
+                  <span>P05: {formatCurrency(data?.result?.agent_outputs?.financial_model?.ebitda_forecast?.p05, theme.currencyUnit)}</span>
+                  <span className="text-blue-400 font-bold">P50: {formatCurrency(data?.result?.agent_outputs?.financial_model?.ebitda_forecast?.p50, theme.currencyUnit)}</span>
+                  <span>P95: {formatCurrency(data?.result?.agent_outputs?.financial_model?.ebitda_forecast?.p95, theme.currencyUnit)}</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* D2 — Feature Importance Chart */}
+          {theme.showSections.features && (
+            <motion.div
+              initial={theme.animate ? { opacity: 0, y: 20 } : {}}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.96 }}
+              className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6 overflow-hidden"
+            >
+              <h3 className="text-lg font-bold text-white mb-4">Feature Importance</h3>
+              <div className="space-y-3">
+                {data?.result?.agent_outputs?.financial_model?.feature_importances?.map((item, index) => {
+                  const maxWeight = Math.max(...(data?.result?.agent_outputs?.financial_model?.feature_importances?.map(f => f.weight) || [1]));
+                  const pct = (item.weight / maxWeight) * 100;
+                  return (
+                    <div key={index} className="flex items-center space-x-3">
+                      <div className="w-36 text-sm text-zinc-400 truncate" title={item.feature?.replace(/_/g, ' ')}>
+                        {item.feature?.replace(/_/g, ' ')}
+                      </div>
+                      <div className="flex-1 bg-zinc-800 rounded-full h-3">
+                        <motion.div
+                          className="h-3 rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 0.8, delay: 1 + index * 0.1 }}
+                        />
+                      </div>
+                      <div className="text-sm text-zinc-500 tabular-nums w-12 text-right">
+                        {(item.weight * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* D3 — Competitive Position Snapshot */}
+          {theme.showSections.peers && (
+            <motion.div
+              initial={theme.animate ? { opacity: 0, y: 20 } : {}}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 1.0 }}
+              className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6 overflow-hidden"
+            >
+              <h3 className="text-lg font-bold text-white mb-4">Competitive Snapshot</h3>
+              <div className="space-y-3">
+                {data?.result?.agent_outputs?.competitor?.peer_rankings?.map((peer, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-[#0a0a0b] rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-bold text-zinc-500 w-5">{index + 1}</span>
+                      <span className="text-sm font-medium text-white">{peer.ticker}</span>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <span className="text-xs text-zinc-400">{formatCurrency(peer.revenue, theme.currencyUnit)}</span>
+                      <span className="text-xs text-zinc-400">{(peer.margin * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.06]">
+                  <span className="text-xs text-zinc-500">Relative Strength</span>
+                  <span className="text-sm font-bold text-emerald-400">
+                    {((data?.result?.agent_outputs?.competitor?.relative_strength || 0) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </div>
       </div>
     );
   };
 
   // ================================================================
-  // 📈 ACTIVE SIGNALS PAGE
+  // ðŸ“ˆ ACTIVE SIGNALS PAGE
   // ================================================================
   const ActiveSignalsPage = () => {
     const [dateRange, setDateRange] = useState('7d');
@@ -1326,7 +1633,7 @@ Latency: ${data?.latency_ms || 0}ms
     });
 
     return (
-      <div className="p-6">
+      <div>
         {/* Header & Filters */}
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-white mb-4">Active Signals History</h2>
@@ -1421,7 +1728,7 @@ Latency: ${data?.latency_ms || 0}ms
                             />
                           </div>
                           <span className="text-sm text-zinc-300 tabular-nums">
-                            {((signal.result?.combined_confidence || 0) * 100).toFixed(1)}%
+                            {((signal.result?.combined_confidence || 0) * 100).toFixed(theme.confDecimals)}%
                           </span>
                         </div>
                       </td>
@@ -1467,7 +1774,7 @@ Latency: ${data?.latency_ms || 0}ms
   };
 
   // ================================================================
-  // 📊 SECTOR ANALYSIS PAGE
+  // ðŸ“Š SECTOR ANALYSIS PAGE
   // ================================================================
   const SectorAnalysisPage = () => {
     const sectorData = [
@@ -1486,7 +1793,7 @@ Latency: ${data?.latency_ms || 0}ms
     ];
 
     return (
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         <h2 className="text-2xl font-bold text-white mb-6">Sector Analysis</h2>
         
         {/* Radar Chart */}
@@ -1510,6 +1817,7 @@ Latency: ${data?.latency_ms || 0}ms
                     fill={accentColors.hex}
                     fillOpacity={0.2}
                     strokeWidth={2}
+                    isAnimationActive={theme.animate}
                   />
                   <Radar 
                     name="Sector Median" 
@@ -1518,6 +1826,7 @@ Latency: ${data?.latency_ms || 0}ms
                     fill="#6366f1"
                     fillOpacity={0.1}
                     strokeWidth={2}
+                    isAnimationActive={theme.animate}
                   />
                   <Tooltip 
                     contentStyle={{
@@ -1614,7 +1923,7 @@ Latency: ${data?.latency_ms || 0}ms
   };
 
   // ================================================================
-  // 👥 PEER BENCHMARKING PAGE
+  // ðŸ‘¥ PEER BENCHMARKING PAGE
   // ================================================================
   const PeerBenchmarkingPage = () => {
     const peerData = useMemo(() => {
@@ -1627,7 +1936,7 @@ Latency: ${data?.latency_ms || 0}ms
     }, [data]);
 
     return (
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         <h2 className="text-2xl font-bold text-white mb-6">Peer Benchmarking</h2>
         
         {/* Scatter Plot */}
@@ -1672,6 +1981,7 @@ Latency: ${data?.latency_ms || 0}ms
                   dataKey="y" 
                   fill={accentColors.hex}
                   opacity={0.8}
+                  isAnimationActive={theme.animate}
                 />
               </ScatterChart>
             </ResponsiveContainer>
@@ -1765,7 +2075,7 @@ Latency: ${data?.latency_ms || 0}ms
   };
 
   // ================================================================
-  // 🛡 AUDIT TRAIL PAGE
+  // ðŸ›¡ AUDIT TRAIL PAGE
   // ================================================================
   const AuditTrailPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -1792,33 +2102,8 @@ Latency: ${data?.latency_ms || 0}ms
       return true;
     });
 
-    // Helper function for recommendation styles
-    const getRecStyles = (action) => {
-      const actionLower = action?.toLowerCase() || '';
-      if (actionLower.includes('buy')) return { 
-        label: 'STRONG BUY', 
-        color: 'text-emerald-400', 
-        bg: 'bg-emerald-500/10'
-      };
-      if (actionLower.includes('sell')) return { 
-        label: 'SELL', 
-        color: 'text-rose-400', 
-        bg: 'bg-rose-500/10'
-      };
-      if (actionLower.includes('hold')) return { 
-        label: 'HOLD', 
-        color: 'text-indigo-400', 
-        bg: 'bg-indigo-500/10'
-      };
-      return { 
-        label: 'MONITOR', 
-        color: 'text-amber-400', 
-        bg: 'bg-amber-500/10'
-      };
-    };
-
     return (
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white">Audit Trail</h2>
           
@@ -1887,7 +2172,7 @@ Latency: ${data?.latency_ms || 0}ms
                     <div className="grid grid-cols-4 gap-4 text-sm">
                       <div>
                         <span className="text-zinc-500">Confidence:</span>
-                        <span className="ml-2 text-white">{((entry.confidence || 0) * 100).toFixed(1)}%</span>
+                        <span className="ml-2 text-white">{((entry.confidence || 0) * 100).toFixed(theme.confDecimals)}%</span>
                       </div>
                       <div>
                         <span className="text-zinc-500">Latency:</span>
@@ -1932,7 +2217,7 @@ Latency: ${data?.latency_ms || 0}ms
   };
 
   // ================================================================
-  // ⚙ CONFIGURATIONS PAGE
+  // âš™ CONFIGURATIONS PAGE
   // ================================================================
   const ConfigurationsPage = () => {
     const [configs, setConfigs] = useState({
@@ -1944,7 +2229,7 @@ Latency: ${data?.latency_ms || 0}ms
     });
 
     return (
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         <h2 className="text-2xl font-bold text-white mb-6">System Configurations</h2>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2080,1014 +2365,7 @@ Latency: ${data?.latency_ms || 0}ms
   };
 
   // ================================================================
-  // 🏠 DETAILED LANDING PAGE - RESTORED FROM ORIGINAL
-  // ================================================================
-  
-  /* ─── Reusable scroll-triggered wrapper ─── */
-  const FadeInSection = ({ children, delay = 0, className = '' }) => {
-    const ref = useRef(null);
-    const isInView = useInView(ref, { once: true, margin: '-60px' });
-    return (
-      <motion.div
-        ref={ref}
-        initial={{ opacity: 0, y: 50 }}
-        animate={isInView ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
-        className={className}
-      >
-        {children}
-      </motion.div>
-    );
-  };
-
-  /* ─── Animated counter ─── */
-  const Counter = ({ target, suffix = '', prefix = '' }) => {
-    const ref = useRef(null);
-    const isInView = useInView(ref, { once: true });
-    const [count, setCount] = useState(0);
-    useEffect(() => {
-      if (!isInView) return;
-      let start = 0;
-      const end = parseInt(target);
-      const duration = 2000;
-      const step = end / (duration / 16);
-      const timer = setInterval(() => {
-        start += step;
-        if (start >= end) { setCount(end); clearInterval(timer); }
-        else setCount(Math.floor(start));
-      }, 16);
-      return () => clearInterval(timer);
-    }, [isInView, target]);
-    return <span ref={ref}>{prefix}{count}{suffix}</span>;
-  };
-
-  /* ─── Canvas-based financial graph background ─── */
-  const FinancialGraphBg = () => {
-    const canvasRef = useRef(null);
-
-    useEffect(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      let animId;
-      let time = 0;
-
-      const resize = () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-      };
-      resize();
-      window.addEventListener('resize', resize);
-
-      const drawLine = (yBase, amplitude, speed, color, lineWidth) => {
-        ctx.beginPath();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = lineWidth;
-        for (let x = 0; x < canvas.width; x += 3) {
-          const y = yBase
-            + Math.sin((x * 0.003) + time * speed) * amplitude
-            + Math.sin((x * 0.007) + time * speed * 1.3) * (amplitude * 0.5)
-            + Math.cos((x * 0.002) + time * speed * 0.7) * (amplitude * 0.3);
-          x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      };
-
-      const drawCandles = (yBase, speed, color) => {
-        for (let x = 50; x < canvas.width; x += 120) {
-          const y = yBase
-            + Math.sin((x * 0.004) + time * speed) * 40
-            + Math.cos((x * 0.002) + time * speed * 0.5) * 20;
-          const h = 8 + Math.sin((x * 0.01) + time * speed) * 6;
-          ctx.fillStyle = color;
-          ctx.fillRect(x - 1.5, y - h, 3, h * 2);
-          ctx.fillRect(x - 4, y - h * 0.5, 8, h);
-        }
-      };
-
-      const animate = () => {
-        time += 0.008;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        ctx.strokeStyle = 'rgba(59,130,246,0.03)';
-        ctx.lineWidth = 0.5;
-        for (let y = 0; y < canvas.height; y += 60) {
-          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-        }
-        for (let x = 0; x < canvas.width; x += 60) {
-          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-        }
-
-        drawLine(canvas.height * 0.3, 50, 0.4, 'rgba(59,130,246,0.08)', 1.5);
-        drawLine(canvas.height * 0.5, 60, 0.3, 'rgba(139,92,246,0.06)', 1);
-        drawLine(canvas.height * 0.7, 40, 0.5, 'rgba(34,211,238,0.05)', 1);
-        drawLine(canvas.height * 0.4, 35, 0.6, 'rgba(16,185,129,0.05)', 0.8);
-        drawCandles(canvas.height * 0.35, 0.3, 'rgba(59,130,246,0.04)');
-        drawCandles(canvas.height * 0.65, 0.4, 'rgba(139,92,246,0.03)');
-
-        animId = requestAnimationFrame(animate);
-      };
-      animate();
-      return () => { cancelAnimationFrame(animId); window.removeEventListener('resize', resize); };
-    }, []);
-
-    return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />;
-  };
-
-  /* ─── Floating nav ─── */
-  const FloatingNav = () => {
-    const [scrolled, setScrolled] = useState(false);
-    const [mobileOpen, setMobileOpen] = useState(false);
-    const navigate = useNavigate();
-
-    useEffect(() => {
-      const handleScroll = () => setScrolled(window.scrollY > 40);
-      window.addEventListener('scroll', handleScroll);
-      return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
-    const links = [
-      { label: 'How It Works', href: '#how-it-works' },
-      { label: 'AI Agents', href: '#agents' },
-      { label: 'Pricing', href: '#pricing' },
-      { label: 'FAQ', href: '#faq' },
-    ];
-
-    return (
-      <motion.nav
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          scrolled
-            ? 'bg-[#0d0d0f]/80 backdrop-blur-2xl border-b border-white/5 shadow-2xl shadow-black/20'
-            : 'bg-transparent'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <a href="#hero" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <LineChart size={16} className="text-white" />
-            </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              FinSight AI
-            </span>
-          </a>
-
-          <div className="hidden md:flex items-center gap-8">
-            {links.map(l => (
-              <a key={l.href} href={l.href} className="text-sm text-zinc-400 hover:text-white transition-colors duration-300">
-                {l.label}
-              </a>
-            ))}
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-semibold transition-all duration-300 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/40"
-            >
-              Launch App
-            </button>
-          </div>
-
-          <button className="md:hidden text-zinc-400" onClick={() => setMobileOpen(!mobileOpen)}>
-            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
-        </div>
-
-        <AnimatePresence>
-          {mobileOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="md:hidden bg-[#0d0d0f]/95 backdrop-blur-2xl border-b border-white/5 overflow-hidden"
-            >
-              <div className="px-6 py-4 flex flex-col gap-3">
-                {links.map(l => (
-                  <a key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="text-sm text-zinc-400 hover:text-white py-2">{l.label}</a>
-                ))}
-                <button onClick={() => navigate('/dashboard')} className="mt-2 px-5 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold w-full">Launch App</button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.nav>
-    );
-  };
-
-  const LandingPage = () => {
-    const navigate = useNavigate();
-    const heroRef = useRef(null);
-    const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-    const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0]);
-    const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.92]);
-    const heroY = useTransform(scrollYProgress, [0, 1], [0, 100]);
-
-    const [openFaq, setOpenFaq] = useState(null);
-
-    /* ── Data ── */
-    const painPoints = [
-      { icon: FileText, title: 'Manual Excel Models', desc: 'Hours of work, prone to human error and outdated assumptions', emoji: '📉' },
-      { icon: CreditCard, title: 'Expensive Analysts', desc: 'Hiring financial analysts costs $150K+/yr — unaffordable for startups', emoji: '💸' },
-      { icon: AlertTriangle, title: 'Missing Market Signals', desc: 'Macro events and sentiment shifts go unnoticed until it\'s too late', emoji: '🔇' },
-      { icon: Users, title: 'No Peer Benchmarking', desc: 'No easy way to compare against competitors in real time', emoji: '🏝️' },
-    ];
-
-    const steps = [
-      {
-        num: '01',
-        title: 'Upload or Enter Data',
-        desc: 'Type any ticker symbol or enter your startup\'s financial data. We support both public companies and custom datasets.',
-        icon: FileText,
-        gradient: 'from-blue-500 to-cyan-400',
-      },
-      {
-        num: '02',
-        title: '4 AI Agents Analyze Simultaneously',
-        desc: 'Our multi-agent system processes transcripts, financials, macro signals, and competitor data — all in parallel.',
-        icon: Cpu,
-        gradient: 'from-purple-500 to-pink-400',
-      },
-      {
-        num: '03',
-        title: 'Get Your Full Report',
-        desc: 'Revenue forecast, BUY/HOLD/SELL signal, confidence score, peer comparison — delivered in seconds.',
-        icon: BarChart3,
-        gradient: 'from-emerald-500 to-teal-400',
-      },
-    ];
-
-    const agents = [
-      {
-        emoji: '📝',
-        name: 'Transcript NLP Agent',
-        role: 'Reads between the lines of earnings calls',
-        desc: 'Uses Gemini 2.0 Flash to analyze management tone, forward guidance, and risk language from quarterly transcripts.',
-        color: 'blue',
-        gradient: 'from-blue-500/20 to-blue-600/5',
-        borderColor: 'border-blue-500/30',
-        textColor: 'text-blue-400',
-      },
-      {
-        emoji: '📊',
-        name: 'Financial Model Agent',
-        role: 'XGBoost-powered forecasting engine',
-        desc: 'Generates revenue and EBITDA predictions with confidence intervals using gradient-boosted decision trees on historical financials.',
-        color: 'emerald',
-        gradient: 'from-emerald-500/20 to-emerald-600/5',
-        borderColor: 'border-emerald-500/30',
-        textColor: 'text-emerald-400',
-      },
-      {
-        emoji: '📰',
-        name: 'Macro News Agent',
-        role: 'Macroeconomic context engine',
-        desc: 'Monitors CPI, GDP, Fed policy, geopolitical events, and sector trends with Groq LLaMA 3.3 for real-time macro scoring.',
-        color: 'amber',
-        gradient: 'from-amber-500/20 to-amber-600/5',
-        borderColor: 'border-amber-500/30',
-        textColor: 'text-amber-400',
-      },
-      {
-        emoji: '👥',
-        name: 'Competitor Agent',
-        role: 'Peer benchmarking system',
-        desc: 'Maps your company against peers on revenue growth, margins, and market position — powered by live financial data.',
-        color: 'purple',
-        gradient: 'from-purple-500/20 to-purple-600/5',
-        borderColor: 'border-purple-500/30',
-        textColor: 'text-purple-400',
-      },
-    ];
-
-    const techStack = [
-      { name: 'Groq LLaMA 3.3', icon: '⚡', color: 'text-orange-400', bg: 'bg-orange-400/10', border: 'border-orange-400/20' },
-      { name: 'Gemini 2.0', icon: '💎', color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' },
-      { name: 'XGBoost', icon: '🌲', color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' },
-      { name: 'FastAPI', icon: '🐍', color: 'text-green-400', bg: 'bg-green-400/10', border: 'border-green-400/20' },
-      { name: 'React', icon: '⚛️', color: 'text-cyan-400', bg: 'bg-cyan-400/10', border: 'border-cyan-400/20' },
-      { name: 'MongoDB', icon: '🍃', color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20' },
-      { name: 'Firebase', icon: '🔥', color: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-400/20' },
-      { name: 'TailwindCSS', icon: '🎨', color: 'text-sky-400', bg: 'bg-sky-400/10', border: 'border-sky-400/20' },
-    ];
-
-    const pricingPlans = [
-      {
-        name: 'Free',
-        price: '$0',
-        period: '/month',
-        badge: 'Current',
-        desc: 'Perfect for exploring FinSight',
-        features: ['5 analyses per month', 'All 4 AI agents', 'Basic dashboard', 'Email support'],
-        cta: 'Start Free',
-        featured: false,
-        gradient: 'from-zinc-800 to-zinc-900',
-        borderColor: 'border-zinc-700/50',
-      },
-      {
-        name: 'Pro',
-        price: '$29',
-        period: '/month',
-        badge: 'Coming Soon',
-        desc: 'For serious founders & analysts',
-        features: ['Unlimited analyses', 'Priority processing', 'API access', 'Export reports (PDF)', 'Custom watchlists', 'Slack integration'],
-        cta: 'Join Waitlist',
-        featured: true,
-        gradient: 'from-blue-600/20 to-purple-600/20',
-        borderColor: 'border-blue-500/40',
-      },
-      {
-        name: 'Enterprise',
-        price: 'Custom',
-        period: '',
-        badge: 'Coming Soon',
-        desc: 'For VC firms & financial teams',
-        features: ['Everything in Pro', 'Custom model training', 'Dedicated support', 'SSO & compliance', 'White-label option', 'SLA guarantee'],
-        cta: 'Contact Us',
-        featured: false,
-        gradient: 'from-zinc-800 to-zinc-900',
-        borderColor: 'border-zinc-700/50',
-      },
-    ];
-
-    const faqs = [
-      {
-        q: 'Is my data secure?',
-        a: 'Yes. We use end-to-end encryption, never store raw financial data permanently, and our infrastructure runs on SOC 2-compliant cloud providers. Your data is processed in-memory and discarded after analysis.',
-      },
-      {
-        q: 'What companies can I analyze?',
-        a: 'Any publicly traded company with available financial data on Yahoo Finance, plus custom datasets you can upload. We support tickers from NYSE, NASDAQ, and major global exchanges.',
-      },
-      {
-        q: 'How accurate are the forecasts?',
-        a: 'Our ensemble model consistently achieves 85–92% directional accuracy on revenue forecasts. Every prediction includes confidence intervals so you know the uncertainty range. We\'re transparent — no black boxes.',
-      },
-      {
-        q: 'Do I need technical knowledge?',
-        a: 'Not at all. Just type a ticker and click Analyze. FinSight handles everything — data collection, modeling, NLP analysis, and report generation. If you can use Google, you can use FinSight.',
-      },
-      {
-        q: 'How is this different from Bloomberg or Refinitiv?',
-        a: 'Bloomberg costs $24,000/year. FinSight gives you AI-powered multi-agent analysis for free during beta. We focus on actionable signals, not raw data overload.',
-      },
-    ];
-
-    const dashboardFeatures = [
-      { label: 'Revenue Forecast', value: '$847M', sub: 'P50 estimate with CI', icon: TrendingUp, color: 'text-emerald-400' },
-      { label: 'Signal', value: 'STRONG BUY', sub: '89% confidence', icon: Target, color: 'text-blue-400' },
-      { label: 'Peer Rank', value: '#2 of 8', sub: 'In sector cohort', icon: Users, color: 'text-purple-400' },
-      { label: 'Macro Score', value: '7.2/10', sub: 'Favorable outlook', icon: Globe, color: 'text-amber-400' },
-    ];
-
-    return (
-      <div className="min-h-screen bg-[#0a0a0b] text-zinc-100 overflow-x-hidden">
-        <FloatingNav />
-
-        {/* ═══════════════════════════════════════════════════
-           ① HERO SECTION
-           ═══════════════════════════════════════════════════ */}
-        <section id="hero" ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
-          <FinancialGraphBg />
-
-          {/* Radial glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-blue-600/[0.08] rounded-full blur-[160px] pointer-events-none" />
-          <div className="absolute top-1/3 left-1/3 w-[500px] h-[500px] bg-purple-600/[0.06] rounded-full blur-[120px] pointer-events-none" />
-
-          <motion.div style={{ opacity: heroOpacity, scale: heroScale, y: heroY }} className="relative z-10 max-w-5xl mx-auto text-center px-6 pt-20">
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-5 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-sm font-semibold mb-8 backdrop-blur-sm"
-            >
-              <Sparkles size={15} className="animate-pulse" />
-              <span>Multi-Agent AI Financial Intelligence</span>
-            </motion.div>
-
-            {/* Heading */}
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight leading-[1.05] mb-6"
-            >
-              <span className="text-white">Your Startup's</span>
-              <br />
-              <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
-                Financial Health,
-              </span>
-              <br />
-              <span className="text-white">Decoded by AI</span>
-            </motion.h1>
-
-            {/* Subtext */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.55 }}
-              className="text-lg sm:text-xl md:text-2xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed"
-            >
-              4 AI agents analyze financials, earnings transcripts, macro signals & competitors
-              — delivering institutional-grade insights in seconds, not weeks.
-            </motion.p>
-
-            {/* CTAs */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.7 }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-4"
-            >
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="group relative px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-xl shadow-blue-600/25 hover:shadow-blue-500/40 flex items-center gap-3 overflow-hidden"
-              >
-                <span className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-white/10 to-blue-400/0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
-                <span className="relative z-10 flex items-center gap-3">
-                  Try Free
-                  <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                </span>
-              </button>
-              <a
-                href="#how-it-works"
-                className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-zinc-300 hover:text-white rounded-2xl font-semibold text-lg transition-all duration-300 flex items-center gap-3"
-              >
-                See How It Works
-                <ChevronDown size={18} className="animate-bounce" />
-              </a>
-            </motion.div>
-
-            {/* Micro-stats */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 1.0 }}
-              className="mt-16 flex flex-wrap justify-center gap-8 text-sm text-zinc-500"
-            >
-              {[
-                { label: 'AI Agents', val: '4', suffix: '' },
-                { label: 'Avg Analysis Time', val: '5', suffix: 's' },
-                { label: 'Directional Accuracy', val: '89', suffix: '%' },
-              ].map((s, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-2xl font-black text-white"><Counter target={s.val} suffix={s.suffix} /></span>
-                  <span>{s.label}</span>
-                </div>
-              ))}
-            </motion.div>
-          </motion.div>
-
-          {/* Scroll indicator */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.5 }}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10"
-          >
-            <a href="#problem" className="flex flex-col items-center gap-2 text-zinc-600 hover:text-zinc-400 transition-colors">
-              <span className="text-xs tracking-widest uppercase">Scroll</span>
-              <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
-                <ChevronDown size={18} />
-              </motion.div>
-            </a>
-          </motion.div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════
-           ② THE PROBLEM SECTION
-           ═══════════════════════════════════════════════════ */}
-        <section id="problem" className="relative py-32 px-6">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-red-950/5 to-transparent pointer-events-none" />
-          <div className="max-w-6xl mx-auto relative z-10">
-            <FadeInSection>
-              <div className="text-center mb-16">
-                <span className="inline-block px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-red-400 bg-red-400/10 border border-red-400/20 rounded-full mb-6">
-                  The Problem
-                </span>
-                <h2 className="text-4xl sm:text-5xl md:text-6xl font-black leading-tight mb-6">
-                  Traditional analysis takes{' '}
-                  <span className="text-red-400">weeks.</span>
-                  <br />
-                  Your startup <span className="text-red-400">can't wait.</span>
-                </h2>
-                <p className="text-lg text-zinc-500 max-w-2xl mx-auto">
-                  Startups move at light speed, but financial insight hasn't caught up — until now.
-                </p>
-              </div>
-            </FadeInSection>
-
-            {/* Pain points */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
-              {painPoints.map((p, i) => (
-                <FadeInSection key={i} delay={i * 0.1}>
-                  <div className="group relative bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-6 hover:border-red-500/30 hover:bg-red-950/10 transition-all duration-500 h-full">
-                    <div className="text-4xl mb-4">{p.emoji}</div>
-                    <h3 className="text-lg font-bold mb-2 group-hover:text-red-400 transition-colors">{p.title}</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">{p.desc}</p>
-                  </div>
-                </FadeInSection>
-              ))}
-            </div>
-
-            {/* Before vs After */}
-            <FadeInSection>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                {/* Before */}
-                <div className="relative bg-zinc-900/60 border border-red-500/20 rounded-2xl p-8 overflow-hidden">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-red-600" />
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                      <X size={20} className="text-red-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-red-400">Before FinSight</h3>
-                  </div>
-                  <ul className="space-y-3">
-                    {['3–5 days per analysis', 'Manual data gathering', 'Single-perspective models', 'No confidence intervals', 'Stale by delivery time'].map((item, i) => (
-                      <li key={i} className="flex items-start gap-3 text-sm text-zinc-400">
-                        <X size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {/* After */}
-                <div className="relative bg-zinc-900/60 border border-emerald-500/20 rounded-2xl p-8 overflow-hidden">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                      <CheckCircle2 size={20} className="text-emerald-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-emerald-400">After FinSight</h3>
-                  </div>
-                  <ul className="space-y-3">
-                    {['5 seconds per analysis', 'Auto-fetched live data', 'Multi-agent ensemble', 'Full confidence intervals', 'Always real-time'].map((item, i) => (
-                      <li key={i} className="flex items-start gap-3 text-sm text-zinc-400">
-                        <CheckCircle2 size={14} className="text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </FadeInSection>
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════
-           ③ HOW IT WORKS
-           ═══════════════════════════════════════════════════ */}
-        <section id="how-it-works" className="relative py-32 px-6">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-950/5 to-transparent pointer-events-none" />
-          <div className="max-w-6xl mx-auto relative z-10">
-            <FadeInSection>
-              <div className="text-center mb-20">
-                <span className="inline-block px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-blue-400 bg-blue-400/10 border border-blue-400/20 rounded-full mb-6">
-                  How It Works
-                </span>
-                <h2 className="text-4xl sm:text-5xl md:text-6xl font-black leading-tight mb-6">
-                  Three steps to{' '}
-                  <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">clarity</span>
-                </h2>
-                <p className="text-lg text-zinc-500 max-w-xl mx-auto">
-                  From raw ticker to full financial intelligence — in seconds.
-                </p>
-              </div>
-            </FadeInSection>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {steps.map((step, i) => (
-                <FadeInSection key={i} delay={i * 0.15}>
-                  <div className="group relative bg-zinc-900/50 border border-zinc-800/50 rounded-3xl p-8 hover:border-blue-500/30 transition-all duration-500 h-full">
-                    {i < 2 && (
-                      <div className="hidden md:block absolute top-1/2 -right-4 w-8 h-px bg-gradient-to-r from-zinc-700 to-transparent z-20" />
-                    )}
-                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${step.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500`}>
-                      <step.icon size={26} className="text-white" />
-                    </div>
-                    <div className="text-5xl font-black text-zinc-800 mb-3">{step.num}</div>
-                    <h3 className="text-xl font-bold mb-3">{step.title}</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">{step.desc}</p>
-                  </div>
-                </FadeInSection>
-              ))}
-            </div>
-
-            {/* Agent flow diagram */}
-            <FadeInSection delay={0.3}>
-              <div className="mt-20 max-w-3xl mx-auto">
-                <div className="bg-zinc-900/40 border border-zinc-800/40 rounded-3xl p-8">
-                  <p className="text-center text-xs text-zinc-600 uppercase tracking-widest mb-6 font-bold">Agent Pipeline Architecture</p>
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="px-6 py-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 text-sm font-semibold">
-                      📥 Input: Ticker + Date
-                    </div>
-                    <motion.div animate={{ y: [0, 4, 0] }} transition={{ duration: 2, repeat: Infinity }} className="text-zinc-700">
-                      <ArrowDown size={20} />
-                    </motion.div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
-                      {agents.map((a, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          whileInView={{ opacity: 1, scale: 1 }}
-                          viewport={{ once: true }}
-                          transition={{ delay: 0.3 + i * 0.1 }}
-                          className={`px-3 py-3 bg-gradient-to-b ${a.gradient} border ${a.borderColor} rounded-xl text-center`}
-                        >
-                          <div className="text-2xl mb-1">{a.emoji}</div>
-                          <div className={`text-xs font-bold ${a.textColor}`}>{a.name.replace(' Agent', '')}</div>
-                        </motion.div>
-                      ))}
-                    </div>
-                    <motion.div animate={{ y: [0, 4, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 0.5 }} className="text-zinc-700">
-                      <ArrowDown size={20} />
-                    </motion.div>
-                    <div className="px-6 py-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400 text-sm font-semibold">
-                      🧠 Ensemble Engine → Final Prediction
-                    </div>
-                    <motion.div animate={{ y: [0, 4, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 1 }} className="text-zinc-700">
-                      <ArrowDown size={20} />
-                    </motion.div>
-                    <div className="px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-sm font-semibold">
-                      📊 Dashboard: Forecast + Signal + Peers + Audit
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </FadeInSection>
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════
-           ④ THE 4 AGENTS
-           ═══════════════════════════════════════════════════ */}
-        <section id="agents" className="relative py-32 px-6">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-950/5 to-transparent pointer-events-none" />
-          <div className="max-w-6xl mx-auto relative z-10">
-            <FadeInSection>
-              <div className="text-center mb-16">
-                <span className="inline-block px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-purple-400 bg-purple-400/10 border border-purple-400/20 rounded-full mb-6">
-                  AI Agents
-                </span>
-                <h2 className="text-4xl sm:text-5xl md:text-6xl font-black leading-tight mb-6">
-                  Meet your{' '}
-                  <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">AI analysts</span>
-                </h2>
-                <p className="text-lg text-zinc-500 max-w-xl mx-auto">
-                  Four specialized agents working in parallel — each an expert in its domain.
-                </p>
-              </div>
-            </FadeInSection>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {agents.map((agent, i) => (
-                <FadeInSection key={i} delay={i * 0.1}>
-                  <div className={`group relative bg-zinc-900/50 border ${agent.borderColor} rounded-3xl p-8 hover:bg-gradient-to-b ${agent.gradient} transition-all duration-700 h-full`}>
-                    <div className={`absolute -top-px -left-px -right-px h-px bg-gradient-to-r ${agent.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-700 rounded-t-3xl`} />
-                    
-                    <div className="flex items-start gap-5">
-                      <div className="text-5xl flex-shrink-0">{agent.emoji}</div>
-                      <div className="flex-1">
-                        <h3 className={`text-xl font-bold mb-1 ${agent.textColor}`}>{agent.name}</h3>
-                        <p className="text-sm text-zinc-400 font-medium mb-3">{agent.role}</p>
-                        <p className="text-sm text-zinc-500 leading-relaxed">{agent.desc}</p>
-                      </div>
-                    </div>
-                  </div>
-                </FadeInSection>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════
-           ⑤ OUTPUT SHOWCASE
-           ═══════════════════════════════════════════════════ */}
-        <section id="output" className="relative py-32 px-6">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-emerald-950/5 to-transparent pointer-events-none" />
-          <div className="max-w-6xl mx-auto relative z-10">
-            <FadeInSection>
-              <div className="text-center mb-16">
-                <span className="inline-block px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded-full mb-6">
-                  What You Get
-                </span>
-                <h2 className="text-4xl sm:text-5xl md:text-6xl font-black leading-tight mb-6">
-                  Your{' '}
-                  <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">command center</span>
-                </h2>
-                <p className="text-lg text-zinc-500 max-w-xl mx-auto">
-                  Everything you need in one dashboard — no spreadsheet juggling required.
-                </p>
-              </div>
-            </FadeInSection>
-
-            {/* Dashboard mockup */}
-            <FadeInSection delay={0.1}>
-              <div className="relative max-w-5xl mx-auto">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-emerald-600/10 blur-3xl rounded-3xl" />
-                
-                <div className="relative bg-[#111113] border border-zinc-800/60 rounded-3xl overflow-hidden shadow-2xl">
-                  {/* Title bar */}
-                  <div className="flex items-center gap-2 px-5 py-3 bg-zinc-900/80 border-b border-zinc-800/50">
-                    <div className="flex gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                      <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                      <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                    </div>
-                    <span className="ml-3 text-xs text-zinc-600">FinSight AI — Dashboard</span>
-                  </div>
-
-                  <div className="p-6 sm:p-8">
-                    <div className="flex items-center justify-between mb-8">
-                      <div>
-                        <h3 className="text-2xl font-black">AAPL Analysis</h3>
-                        <p className="text-sm text-zinc-500">Apple Inc. • As of 2026-01-31</p>
-                      </div>
-                      <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <span className="text-emerald-400 font-bold text-sm">● STRONG BUY</span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                      {dashboardFeatures.map((f, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, y: 20 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ delay: 0.3 + i * 0.1 }}
-                          className="bg-zinc-900/60 border border-zinc-800/50 rounded-2xl p-4"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <f.icon size={14} className={f.color} />
-                            <span className="text-xs text-zinc-500">{f.label}</span>
-                          </div>
-                          <div className={`text-xl font-black ${f.color}`}>{f.value}</div>
-                          <div className="text-xs text-zinc-600 mt-1">{f.sub}</div>
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    {/* Chart mockup */}
-                    <div className="bg-zinc-900/40 border border-zinc-800/40 rounded-2xl p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-sm font-bold text-zinc-400">Revenue Forecast (Quarterly)</span>
-                        <span className="text-xs text-zinc-600">P10 — P50 — P90</span>
-                      </div>
-                      <div className="h-40 flex items-end gap-2">
-                        {[35, 42, 48, 52, 58, 62, 55, 68, 72, 78, 85, 92].map((h, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ height: 0 }}
-                            whileInView={{ height: `${h}%` }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.6, delay: 0.4 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
-                            className="flex-1 rounded-t-lg bg-gradient-to-t from-blue-600/30 to-blue-400/60 relative"
-                          >
-                            <div className="absolute inset-x-0 top-0 h-1 bg-blue-400 rounded-t-lg opacity-80" />
-                          </motion.div>
-                        ))}
-                      </div>
-                      <div className="flex justify-between mt-2 text-[10px] text-zinc-700">
-                        <span>Q1'24</span><span>Q2'24</span><span>Q3'24</span><span>Q4'24</span>
-                        <span>Q1'25</span><span>Q2'25</span><span>Q3'25</span><span>Q4'25</span>
-                        <span className="text-blue-400/60">Q1'26↗</span><span className="text-blue-400/60">Q2'26↗</span>
-                        <span className="text-blue-400/60">Q3'26↗</span><span className="text-blue-400/60">Q4'26↗</span>
-                      </div>
-                    </div>
-
-                    {/* Peer table */}
-                    <div className="mt-6 bg-zinc-900/40 border border-zinc-800/40 rounded-2xl overflow-hidden">
-                      <div className="px-6 py-3 border-b border-zinc-800/40">
-                        <span className="text-sm font-bold text-zinc-400">Peer Comparison</span>
-                      </div>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-xs text-zinc-600 border-b border-zinc-800/30">
-                            <th className="text-left px-6 py-2">Company</th>
-                            <th className="text-right px-6 py-2">Rev Growth</th>
-                            <th className="text-right px-6 py-2">Margin</th>
-                            <th className="text-right px-6 py-2">Signal</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[
-                            { n: 'AAPL', g: '+12.4%', m: '31.2%', s: 'BUY', sc: 'text-emerald-400' },
-                            { n: 'MSFT', g: '+14.1%', m: '35.8%', s: 'BUY', sc: 'text-emerald-400' },
-                            { n: 'GOOGL', g: '+8.7%', m: '27.4%', s: 'HOLD', sc: 'text-amber-400' },
-                            { n: 'META', g: '+22.3%', m: '29.1%', s: 'BUY', sc: 'text-emerald-400' },
-                          ].map((r, i) => (
-                            <tr key={i} className="border-b border-zinc-800/20 hover:bg-zinc-800/20 transition-colors">
-                              <td className="px-6 py-2.5 font-bold">{r.n}</td>
-                              <td className="text-right px-6 py-2.5 text-emerald-400">{r.g}</td>
-                              <td className="text-right px-6 py-2.5 text-zinc-400">{r.m}</td>
-                              <td className={`text-right px-6 py-2.5 font-bold ${r.sc}`}>{r.s}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </FadeInSection>
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════
-           ⑥ PRICING
-           ═══════════════════════════════════════════════════ */}
-        <section id="pricing" className="relative py-32 px-6">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-950/5 to-transparent pointer-events-none" />
-          <div className="max-w-6xl mx-auto relative z-10">
-            <FadeInSection>
-              <div className="text-center mb-6">
-                <span className="inline-block px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-blue-400 bg-blue-400/10 border border-blue-400/20 rounded-full mb-6">
-                  Pricing
-                </span>
-                <h2 className="text-4xl sm:text-5xl md:text-6xl font-black leading-tight mb-4">
-                  Simple,{' '}
-                  <span className="bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">transparent</span>
-                  {' '}pricing
-                </h2>
-                <p className="text-lg text-zinc-500 max-w-xl mx-auto mb-4">
-                  Start analyzing for free. Scale when you're ready.
-                </p>
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-sm font-semibold">
-                  <Rocket size={14} />
-                  Currently in Beta — Free for Early Adopters
-                </div>
-              </div>
-            </FadeInSection>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">
-              {pricingPlans.map((plan, i) => (
-                <FadeInSection key={i} delay={i * 0.1}>
-                  <div className={`relative bg-gradient-to-b ${plan.gradient} border ${plan.borderColor} rounded-3xl p-8 h-full flex flex-col ${plan.featured ? 'md:scale-[1.03] shadow-2xl shadow-blue-600/10' : ''}`}>
-                    {plan.featured && (
-                      <div className="absolute -top-px left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
-                    )}
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xl font-bold">{plan.name}</h3>
-                      <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                        plan.badge === 'Current' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
-                      }`}>{plan.badge}</span>
-                    </div>
-                    <div className="mb-2">
-                      <span className="text-4xl font-black">{plan.price}</span>
-                      <span className="text-zinc-500 text-sm">{plan.period}</span>
-                    </div>
-                    <p className="text-sm text-zinc-500 mb-6">{plan.desc}</p>
-                    <ul className="space-y-3 mb-8 flex-1">
-                      {plan.features.map((f, j) => (
-                        <li key={j} className="flex items-center gap-2.5 text-sm text-zinc-400">
-                          <CheckCircle2 size={14} className={plan.featured ? 'text-blue-400' : 'text-zinc-600'} />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <button
-                      onClick={() => plan.name === 'Free' ? navigate('/dashboard') : null}
-                      className={`w-full py-3 rounded-xl font-semibold text-sm transition-all duration-300 ${
-                        plan.featured
-                          ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-500/40'
-                          : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 hover:border-zinc-600'
-                      }`}
-                    >
-                      {plan.cta}
-                    </button>
-                  </div>
-                </FadeInSection>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════
-           ⑦ FAQ
-           ═══════════════════════════════════════════════════ */}
-        <section id="faq" className="relative py-32 px-6">
-          <div className="max-w-3xl mx-auto">
-            <FadeInSection>
-              <div className="text-center mb-16">
-                <span className="inline-block px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-zinc-400 bg-zinc-400/10 border border-zinc-400/20 rounded-full mb-6">
-                  FAQ
-                </span>
-                <h2 className="text-4xl sm:text-5xl font-black leading-tight mb-4">
-                  Got questions?
-                </h2>
-                <p className="text-lg text-zinc-500">We've got answers.</p>
-              </div>
-            </FadeInSection>
-
-            <div className="space-y-3">
-              {faqs.map((faq, i) => (
-                <FadeInSection key={i} delay={i * 0.06}>
-                  <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-2xl overflow-hidden transition-all duration-300 hover:border-zinc-700/60">
-                    <button
-                      onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                      className="w-full flex items-center justify-between px-6 py-5 text-left"
-                    >
-                      <span className="font-semibold text-sm sm:text-base pr-4">{faq.q}</span>
-                      <motion.div animate={{ rotate: openFaq === i ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                        <ChevronDown size={18} className="text-zinc-500 flex-shrink-0" />
-                      </motion.div>
-                    </button>
-                    <AnimatePresence>
-                      {openFaq === i && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                          className="overflow-hidden"
-                        >
-                          <div className="px-6 pb-5 text-sm text-zinc-500 leading-relaxed border-t border-zinc-800/30 pt-4">
-                            {faq.a}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </FadeInSection>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════
-           ⑧ FOOTER CTA
-           ═══════════════════════════════════════════════════ */}
-        <section className="relative py-32 px-6">
-          <div className="absolute inset-0 bg-gradient-to-t from-blue-950/10 to-transparent pointer-events-none" />
-          <div className="max-w-4xl mx-auto text-center relative z-10">
-            <FadeInSection>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-blue-600/[0.08] blur-[100px] rounded-full pointer-events-none" />
-              
-              <div className="relative">
-                <h2 className="text-4xl sm:text-5xl md:text-6xl font-black leading-tight mb-6">
-                  Ready to understand
-                  <br />
-                  <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                    your financials?
-                  </span>
-                </h2>
-                <p className="text-lg text-zinc-500 max-w-xl mx-auto mb-10">
-                  Join hundreds of founders using AI to decode their financial health. Free during beta.
-                </p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <button
-                    onClick={() => navigate('/dashboard')}
-                    className="group relative px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-2xl shadow-blue-600/25 hover:shadow-blue-500/40 flex items-center gap-3 overflow-hidden"
-                  >
-                    <span className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-white/10 to-blue-400/0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
-                    <span className="relative z-10 flex items-center gap-3">
-                      Start Analyzing — It's Free
-                      <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                    </span>
-                  </button>
-                </div>
-                <p className="mt-6 text-xs text-zinc-700">No credit card required • Free during beta • Takes 5 seconds</p>
-              </div>
-            </FadeInSection>
-          </div>
-        </section>
-
-        {/* Footer */}
-        <footer className="border-t border-zinc-800/50 py-12 px-6">
-          <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                <LineChart size={14} className="text-white" />
-              </div>
-              <span className="text-sm font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                FinSight AI
-              </span>
-            </div>
-            <div className="flex items-center gap-6 text-xs text-zinc-600">
-              <a href="#hero" className="hover:text-zinc-400 transition-colors">Home</a>
-              <a href="#how-it-works" className="hover:text-zinc-400 transition-colors">How It Works</a>
-              <a href="#agents" className="hover:text-zinc-400 transition-colors">AI Agents</a>
-              <a href="#pricing" className="hover:text-zinc-400 transition-colors">Pricing</a>
-              <a href="#faq" className="hover:text-zinc-400 transition-colors">FAQ</a>
-            </div>
-            <p className="text-xs text-zinc-700">
-              © 2026 FinSight AI. Multi-agent financial intelligence.
-            </p>
-          </div>
-        </footer>
-
-        {/* Additional sections will continue... */}
-        {/* To keep this response manageable, I'm implementing the core structure. */}
-        {/* The remaining sections follow the same pattern from the original Landing.jsx */}
-
-      </div>
-    );
-  };
-
-  // ================================================================
-  // 🎯 MAIN APP LAYOUT & ROUTING
+  // ðŸŽ¯ MAIN APP LAYOUT & ROUTING
   // ================================================================
   
   return (
@@ -3105,14 +2383,14 @@ Latency: ${data?.latency_ms || 0}ms
         <CustomizerDrawer />
 
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<Landing />} />
           <Route path="/*" element={
-            <div className="flex">
+            <div className="flex min-h-screen">
               {/* Sidebar */}
               <Sidebar />
               
               {/* Main Content Area */}
-              <div className={`flex-1 ${
+              <div className={`flex-1 min-w-0 ${
                 theme.sidebarMode === 'hidden' ? 'ml-0' :
                 theme.sidebarMode === 'collapsed' ? 'ml-16' : 'ml-60'
               } transition-all duration-300`}>
