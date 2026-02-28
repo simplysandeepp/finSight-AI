@@ -248,6 +248,8 @@ persist_request() → SQLite
     ▼
 JSON response → Frontend
 ```
+### Architecture Overview
+<img width="1935" height="1517" alt="image" src="https://github.com/user-attachments/assets/761d5dc3-b956-4c3a-91d1-2dd58359ca70" />
 
 ### Mermaid Architecture Overview
 
