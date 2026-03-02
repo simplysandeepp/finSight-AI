@@ -12,6 +12,12 @@ services:
     volumes:
       - ./backend/out:/app/out
       - ./backend/audit:/app/audit
+    environment:
+      - MONGODB_URL=${MONGODB_URL:-}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL:-}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY:-}
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY:-}
 
   frontend:
     build:
@@ -21,5 +27,7 @@ services:
       - "5173:5173"
     depends_on:
       - backend
+    env_file:
+      - ./frontend/.env
     environment:
       - VITE_API_URL=http://localhost:8000

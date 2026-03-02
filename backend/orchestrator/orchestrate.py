@@ -62,7 +62,13 @@ def get_geometric_mean(values: List[float]) -> float:
         return 0.0
     return float(np.exp(np.mean(np.log([v if v > 0 else 1e-6 for v in values]))))
 
-async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
+async def orchestrate(
+    company_id: str,
+    as_of_date: str,
+    org_features: Optional[Dict[str, Any]] = None,
+    org_quarter: Optional[str] = None,
+    org_industry: Optional[str] = None,
+) -> Dict[str, Any]:
     start_time = time.time()
     request_id = f"req-{uuid.uuid4().hex[:8]}"
     trace_id = f"trace-{uuid.uuid4().hex[:8]}"
@@ -72,6 +78,7 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
     # Initialize Alpha Vantage Client
     av_client = AlphaVantageClient()
     live_data_available = False
+    org_mode = org_features is not None
     
     features = {}
     quarter = "Q4"
@@ -82,9 +89,26 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
         "as cost-cutting initiatives take full effect across the enterprise operations globally."
     )
     headlines = []
-    
+
+    # ── ORG PATH: use pre-computed features, skip live / synthetic fetch ──
+    if org_mode:
+        features = org_features
+        quarter = org_quarter or features.get("quarter", "Q4")
+        live_data_available = True   # treat as "resolved" so we skip feature-store fallback
+        headlines = [
+            f"Internal quarterly review for {company_id}",
+            f"Industry outlook: {org_industry or 'General'}",
+        ]
+        transcript_text = (
+            f"Internal {quarter} earnings summary for private organisation. "
+            f"Revenue stands at {features.get('revenue', 0):.1f}M with EBITDA margin of "
+            f"{features.get('ebitda_margin', 0):.1%}. Management is focused on sustainable "
+            f"growth across the {org_industry or 'General'} sector."
+        )
+        logger.info(f"[org-mode] Using pre-computed org features for {company_id}, quarter={quarter}")
+
     # 1. Attempt Live Data Fetch (yfinance prioritized, AV fallback)
-    if not company_id.startswith("COMP_"):
+    if not org_mode and not company_id.startswith("COMP_"):
         try:
             logger.info(f"Attempting live data fetch via yfinance for {company_id}")
             real_history = get_ticker_data(company_id)
@@ -117,8 +141,8 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Live data fetch failed: {e}")
 
-    # 2. Fallback to feature store if live data unavailable
-    if not live_data_available:
+    # 2. Fallback to feature store if live data unavailable (skip for org mode)
+    if not live_data_available and not org_mode:
         if not FEATURES_PATH.exists():
             raise FileNotFoundError("Feature store (features_v1.pkl) not found. Run feature store first.")
         
@@ -153,7 +177,18 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
 
     # 4. Fetch Peer Data for Competitor Agent
     peer_financials = []
-    if live_data_available:
+
+    # Org mode: generate industry-representative peer placeholders
+    if org_mode:
+        industry = org_industry or "General"
+        rev = features.get("revenue", 100)
+        margin = features.get("ebitda_margin", 0.2)
+        peer_financials = [
+            {"peer_id": f"{industry}_Peer_A", "revenue": rev * 1.1, "ebitda_margin": margin * 0.95, "revenue_growth": 0.04},
+            {"peer_id": f"{industry}_Peer_B", "revenue": rev * 0.85, "ebitda_margin": margin * 1.05, "revenue_growth": 0.06},
+            {"peer_id": f"{industry}_Avg", "revenue": rev * 0.98, "ebitda_margin": margin * 1.0, "revenue_growth": 0.05},
+        ]
+    elif live_data_available:
         peer_tickers = get_peers(company_id)
         logger.info(f"Fetching peer data for: {peer_tickers}")
         for pt in peer_tickers:
@@ -320,7 +355,7 @@ async def orchestrate(company_id: str, as_of_date: str) -> Dict[str, Any]:
         "status": "success" if not degraded_agents else "partial",
         "latency_ms": latency_ms,
         "result": final_output.model_dump(),
-        "data_source": "live_vantage" if live_data_available else "synthetic_store",
+        "data_source": "org_upload" if org_mode else ("live_vantage" if live_data_available else "synthetic_store"),
         "explainability": {
             "confidence_breakdown": {k: v.confidence for k, v in agent_outputs.items()},
             "degraded": degraded_agents,

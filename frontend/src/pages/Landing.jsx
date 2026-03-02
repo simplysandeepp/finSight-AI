@@ -166,10 +166,10 @@ const FloatingNav = () => {
             </a>
           ))}
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/login')}
             className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-semibold transition-all duration-300 shadow-lg shadow-blue-600/20 hover:shadow-blue-500/40"
           >
-            Launch App
+            Login
           </button>
         </div>
 
@@ -190,7 +190,7 @@ const FloatingNav = () => {
               {links.map(l => (
                 <a key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="text-sm text-zinc-400 hover:text-white py-2">{l.label}</a>
               ))}
-              <button onClick={() => navigate('/dashboard')} className="mt-2 px-5 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold w-full">Launch App</button>
+              <button onClick={() => navigate('/login')} className="mt-2 px-5 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold w-full">Login</button>
             </div>
           </motion.div>
         )}
@@ -428,7 +428,7 @@ const Landing = () => {
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/login')}
               className="group relative px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-xl shadow-blue-600/25 hover:shadow-blue-500/40 flex items-center gap-3 overflow-hidden"
             >
               <span className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-white/10 to-blue-400/0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
@@ -980,7 +980,7 @@ const Landing = () => {
                     ))}
                   </ul>
                   <button
-                    onClick={() => plan.name === 'Free' ? navigate('/dashboard') : null}
+                    onClick={() => plan.name === 'Free' ? navigate('/login') : null}
                     className={`w-full py-3 rounded-xl font-semibold text-sm transition-all duration-300 ${
                       plan.featured
                         ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-500/40'
@@ -1070,7 +1070,7 @@ const Landing = () => {
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <button
-                  onClick={() => navigate('/dashboard')}
+                  onClick={() => navigate('/login')}
                   className="group relative px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-2xl shadow-blue-600/25 hover:shadow-blue-500/40 flex items-center gap-3 overflow-hidden"
                 >
                   <span className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-white/10 to-blue-400/0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />

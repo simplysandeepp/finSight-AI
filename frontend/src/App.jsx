@@ -4,10 +4,19 @@
 // ================================================================
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, useInView, useScroll, useTransform } from 'framer-motion';
 import axios from 'axios';
 import Landing from './pages/Landing.jsx';
+import Login from './pages/Login.jsx';
+import Signup from './pages/Signup.jsx';
+import { useAuth } from './context/AuthContext.jsx';
+import RoleSelectModal from './components/RoleSelectModal.jsx';
+import OrgDashboard from './pages/OrgDashboard.jsx';
+import UploadData from './pages/UploadData.jsx';
+import OrgHistory from './pages/OrgHistory.jsx';
+import { signOut } from 'firebase/auth';
+import { auth } from './firebase/config';
 import { 
   TrendingUp, Target, Info, Settings, Menu, X, ChevronRight, Brain,
   BarChart, LineChart, Users, Shield, Activity, Calendar, Search,
@@ -15,7 +24,7 @@ import {
   Bell, Gauge, Zap, Star, ArrowUp, ArrowDown, Minus, Eye, FileText,
   Sparkles, ChevronDown, BarChart3, Globe, CheckCircle2, ArrowRight,
   CreditCard, Cpu, Layers, Database, Server, Code2, Rocket, Crown,
-  Building2, Lock, HelpCircle, ChevronUp
+  Building2, Lock, HelpCircle, ChevronUp, LogOut, Upload, History
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart, Bar, LineChart as RechartsLineChart, Line,
@@ -241,23 +250,109 @@ const ConfidenceRing = ({ value, size = 120, strokeWidth = 8, decimals = 1, clas
 // ================================================================
 // ðŸš€ MAIN APP COMPONENT
 // ================================================================
+const AuthGateLoader = () => (
+  <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
+    <div className="text-zinc-400 text-sm tracking-[0.2em] uppercase">Loading FinSight...</div>
+  </div>
+);
+
+const ProtectedRoute = ({ children }) => {
+  const { user, userRole, setUserRole, loading, firestoreError } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [isSavingRole, setIsSavingRole] = useState(false);
+  const [roleError, setRoleError] = useState('');
+
+  const handleRoleSelect = async (role) => {
+    setRoleError('');
+    setIsSavingRole(true);
+
+    try {
+      await setUserRole(role);
+      navigate('/dashboard', { replace: true });
+    } catch (error) {
+      setRoleError(error?.message || 'Unable to save role. Please try again.');
+    } finally {
+      setIsSavingRole(false);
+    }
+  };
+
+  if (loading) {
+    return <AuthGateLoader />;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  return (
+    <>
+      {firestoreError && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-500/10 border-b border-amber-500/30 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <div>
+                <p className="text-sm font-medium text-amber-200">
+                  Firestore Database Not Configured
+                </p>
+                <p className="text-xs text-amber-300/70 mt-0.5">
+                  Enable Firestore in Firebase Console → Build → Firestore Database. Role selections won't persist until configured.
+                </p>
+              </div>
+            </div>
+            <a 
+              href="https://console.firebase.google.com/project/finsight-ai-f1ede/firestore" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs text-amber-400 hover:text-amber-300 underline whitespace-nowrap"
+            >
+              Open Firebase Console →
+            </a>
+          </div>
+        </div>
+      )}
+      <div className={firestoreError ? 'pt-16' : ''}>
+        {children}
+      </div>
+      {!userRole && (
+        <RoleSelectModal
+          onSelect={handleRoleSelect}
+          isSaving={isSavingRole}
+          error={roleError}
+        />
+      )}
+    </>
+  );
+};
+
+const PublicRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <AuthGateLoader />;
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
 const App = () => {
   // ================================================================
   // ðŸ”§ STATE MANAGEMENT
   // ================================================================
   
   // Core application state
-  const [companyId, setCompanyId] = useState('COMP_007');
+  const [companyId, setCompanyId] = useState('');
   const [asOfDate, setAsOfDate] = useState('2026-01-31');
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState(MOCK_DATA);
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [isDemoMode, setIsDemoMode] = useState(true);
-  const [signalHistory, setSignalHistory] = useState([
-    // Mock history data
-    { ...MOCK_DATA, companyId: 'AAPL', asOfDate: '2026-01-30', ts: '2026-01-30T15:30:00Z' },
-    { ...MOCK_DATA, companyId: 'MSFT', asOfDate: '2026-01-29', ts: '2026-01-29T14:20:00Z', result: { ...MOCK_DATA.result, recommendation: { action: 'hold', rationale: 'Neutral outlook' }, combined_confidence: 0.72 }},
-  ]);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [signalHistory, setSignalHistory] = useState([]);
 
   // Customization theme state
   const [theme, setTheme] = useState({
@@ -294,6 +389,37 @@ const App = () => {
     };
     return map[theme.accent] || map.emerald;
   }, [theme.accent]);
+
+  // Get auth context for org data loading
+  const { userRole: appUserRole, user: appUser } = useAuth();
+  
+  // Load org dashboard data automatically when org user logs in
+  useEffect(() => {
+    const loadOrgData = async () => {
+      if (appUserRole !== 'org' || !appUser?.uid) return;
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const response = await axios.get(`/api/org-latest?uid=${appUser.uid}`);
+        if (response.data) {
+          setData(response.data);
+          console.log('Loaded org dashboard data:', response.data);
+        }
+      } catch (err) {
+        if (err.response?.status !== 404) {
+          console.error('Failed to load org data:', err);
+        } else {
+          console.log('No analysis results yet - dashboard will show empty state');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadOrgData();
+  }, [appUserRole, appUser?.uid]);
 
   // ================================================================
   // ðŸ”„ API FUNCTIONS
@@ -352,11 +478,11 @@ Latency: ${data?.latency_ms || 0}ms
   const Sidebar = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { userRole } = useAuth();
     const isCollapsed = theme.sidebarMode === 'collapsed';
     const isHidden = theme.sidebarMode === 'hidden';
     
-    const navItems = [
-      { path: '/', icon: Activity, label: 'Landing', key: 'landing' },
+    const investorNavItems = [
       { path: '/dashboard', icon: BarChart, label: 'Dashboard', key: 'dashboard' },
       { path: '/signals', icon: Radio, label: 'Active Signals', key: 'signals' },
       { path: '/sector', icon: TrendingUp, label: 'Sector Analysis', key: 'sector' },
@@ -364,6 +490,17 @@ Latency: ${data?.latency_ms || 0}ms
       { path: '/audit', icon: Shield, label: 'Audit Trail', key: 'audit' },
       { path: '/configs', icon: Settings, label: 'Configurations', key: 'configs' }
     ];
+
+    const orgNavItems = [
+      { path: '/dashboard', icon: BarChart, label: 'My Dashboard', key: 'dashboard' },
+      { path: '/upload', icon: Upload, label: 'Upload Data', key: 'upload' },
+      { path: '/org-history', icon: History, label: 'My Company History', key: 'org-history' },
+      { path: '/peers', icon: Users, label: 'Competitor Compare', key: 'peers' },
+      { path: '/audit', icon: Shield, label: 'Audit Trail', key: 'audit' },
+      { path: '/configs', icon: Settings, label: 'Configurations', key: 'configs' }
+    ];
+
+    const navItems = userRole === 'org' ? orgNavItems : investorNavItems;
   
     if (isHidden) return null;
   
@@ -444,22 +581,35 @@ Latency: ${data?.latency_ms || 0}ms
   // ================================================================
   const TopBar = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { userRole, user } = useAuth();
+
+    const handleLogout = async () => {
+      try {
+        await signOut(auth);
+        navigate('/', { replace: true });
+      } catch (err) {
+        console.error('Logout failed:', err);
+      }
+    };
     
     const getPageTitle = () => {
       const pathMap = {
         '/': 'Landing',
-        '/dashboard': 'Multi-Agent Dashboard',
+        '/dashboard': userRole === 'org' ? 'My Dashboard' : 'Multi-Agent Dashboard',
         '/signals': 'Active Signals',
         '/sector': 'Sector Analysis', 
-        '/peers': 'Peer Benchmarking',
+        '/peers': userRole === 'org' ? 'Competitor Compare' : 'Peer Benchmarking',
         '/audit': 'Audit Trail',
-        '/configs': 'Configurations'
+        '/configs': 'Configurations',
+        '/upload': 'Upload Data',
+        '/org-history': 'My Company History'
       };
       return pathMap[location.pathname] || 'Dashboard';
     };
 
     return (
-      <div className="h-16 bg-[#0d0d0f] border-b border-white/[0.06] flex items-center justify-between px-6">
+      <div className="h-16 bg-[#0d0d0f] shadow-sm shadow-black/20 flex items-center justify-between px-6 relative after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-white/5 after:to-transparent">
         {/* Left: Page title */}
         <div>
           <h1 className="text-xl font-bold text-white">{getPageTitle()}</h1>
@@ -470,65 +620,122 @@ Latency: ${data?.latency_ms || 0}ms
           </div>
         </div>
 
-        {/* Center: Analysis controls */}
-        <div className="flex items-center space-x-4">
-          <input
-            type="text"
-            value={companyId}
-            onChange={(e) => setCompanyId(e.target.value)}
-            placeholder="COMP_007 or AAPL"
-            className="bg-[#111113] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white font-mono 
-                     focus:border-emerald-500/50 focus:outline-none w-40"
-          />
-          
-          <input
-            type="date"
-            value={asOfDate}
-            onChange={(e) => setAsOfDate(e.target.value)}
-            className="bg-[#111113] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white
-                     focus:border-emerald-500/50 focus:outline-none"
-          />
-          
-          <motion.button
-            onClick={handlePredict}
-            disabled={loading}
-            className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center space-x-2
-                       ${loading 
-                         ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' 
-                         : `bg-gradient-to-r from-emerald-500 to-blue-500 text-white hover:from-emerald-600 hover:to-blue-600`}`}
-            whileHover={!loading ? { scale: 1.05 } : {}}
-            whileTap={!loading ? { scale: 0.95 } : {}}
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div>
-                <span>Analyzing</span>
-              </>
-            ) : (
-              <>
-                <Zap className="w-4 h-4" />
-                <span>Run Analysis</span>
-              </>
-            )}
-          </motion.button>
-        </div>
+        {/* Center: Controls — different for investor vs org */}
+        {userRole === 'org' ? (
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-zinc-400">{user?.displayName || user?.email || 'Organization'}</span>
+            <button
+              onClick={async () => {
+                if (!user?.uid) return;
+                setLoading(true);
+                setError(null);
+                try {
+                  const response = await axios.post('/api/predict-org', {
+                    uid: user.uid,
+                    as_of_date: new Date().toISOString().split('T')[0],
+                  });
+                  setData(response.data);
+                } catch (err) {
+                  setError(err.response?.data?.detail || 'Analysis failed. Please try again.');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center space-x-2 transition-all
+                         ${loading 
+                           ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' 
+                           : 'bg-gradient-to-r from-emerald-500 to-blue-500 text-white hover:from-emerald-600 hover:to-blue-600 hover:scale-105 active:scale-95'}`}
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Analyzing</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  <span>Run Analysis</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => navigate('/upload')}
+              className="px-4 py-2 rounded-lg font-medium text-sm flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Upload CSV</span>
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handlePredict} className="flex items-center space-x-4">
+            <input
+              type="text"
+              value={companyId}
+              onChange={(e) => setCompanyId(e.target.value)}
+              placeholder="COMP_007 or AAPL"
+              className="bg-[#111113] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white font-mono 
+                       focus:border-emerald-500/50 focus:outline-none w-40"
+            />
+            
+            <input
+              type="date"
+              value={asOfDate}
+              onChange={(e) => setAsOfDate(e.target.value)}
+              className="bg-[#111113] border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-white
+                       focus:border-emerald-500/50 focus:outline-none"
+            />
+            
+            <button
+              type="submit"
+              disabled={loading}
+              className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center space-x-2 transition-all
+                         ${loading 
+                           ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' 
+                           : `bg-gradient-to-r from-emerald-500 to-blue-500 text-white hover:from-emerald-600 hover:to-blue-600 hover:scale-105 active:scale-95`}`}
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Analyzing</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  <span>Run Analysis</span>
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
-        {/* Right: Status and controls */}
+        {/* Right: Status, role badge, and controls */}
         <div className="flex items-center space-x-4">
-          {isDemoMode && (
+          {/* Role badge */}
+          <span className={`px-2 py-1 text-[10px] font-black uppercase rounded tracking-wider border ${
+            userRole === 'org'
+              ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
+              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+          }`}>
+            {userRole === 'org' ? 'Organization' : 'Investor'}
+          </span>
+
+          {isDemoMode && userRole !== 'org' && (
             <span className="px-2 py-1 bg-amber-500/20 text-amber-400 text-xs font-bold uppercase rounded border border-amber-500/30">
               DEMO
             </span>
           )}
           
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${data?.data_source === 'live_vantage' ? 'bg-blue-500 animate-pulse' : 'bg-zinc-500'}`}></div>
-            <span className="text-xs text-zinc-500 uppercase">
-              {data?.data_source === 'live_vantage' ? 'LIVE' : 'SYNTHETIC'}
-            </span>
-          </div>
+          {userRole !== 'org' && (
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${data?.data_source === 'live_vantage' ? 'bg-blue-500 animate-pulse' : 'bg-zinc-500'}`}></div>
+              <span className="text-xs text-zinc-500 uppercase">
+                {data?.data_source === 'live_vantage' ? 'LIVE' : 'SYNTHETIC'}
+              </span>
+            </div>
+          )}
           
-          {data?.latency_ms && (
+          {data?.latency_ms && userRole !== 'org' && (
             <div className="text-xs text-zinc-500">
               {data.latency_ms}ms
             </div>
@@ -543,6 +750,14 @@ Latency: ${data?.latency_ms || 0}ms
             className="p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
           >
             <Settings className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="p-2 text-zinc-500 hover:text-rose-400 transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -952,6 +1167,37 @@ Latency: ${data?.latency_ms || 0}ms
     const confidence = data?.result?.combined_confidence || 0;
     const revenueP50 = useCountUp(data?.result?.final_forecast?.revenue_p50 || 0, 1000, 200);
     const ebitdaP50 = useCountUp(data?.result?.final_forecast?.ebitda_p50 || 0, 1000, 400);
+
+    // Show empty state when no data
+    if (!loading && !data) {
+      return (
+        <div className="min-h-[600px] flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center">
+              <Search className="w-10 h-10 text-emerald-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-3">No Analysis Yet</h3>
+            <p className="text-zinc-400 mb-6">
+              Enter a stock ticker in the search bar above and click "Run Analysis" to view AI-powered financial insights and forecasts.
+            </p>
+            <div className="flex items-center justify-center gap-4 text-sm text-zinc-500">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                <span>Live Data</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4" />
+                <span>4 AI Agents</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4" />
+                <span>Real-time</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">
@@ -1618,6 +1864,17 @@ Latency: ${data?.latency_ms || 0}ms
     );
   };
 
+
+  // ================================================================
+  // ROLE-BASED DASHBOARD ROUTER
+  // ================================================================
+  const RoleDashboardPage = () => {
+    const { userRole, user } = useAuth();
+    if (userRole === 'org') {
+      return <OrgDashboard data={data} error={error} orgName={user?.displayName || ''} />;
+    }
+    return <DashboardPage />;
+  };
   // ================================================================
   // ðŸ“ˆ ACTIVE SIGNALS PAGE
   // ================================================================
@@ -2384,59 +2641,80 @@ Latency: ${data?.latency_ms || 0}ms
 
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/signup"
+            element={
+              <PublicRoute>
+                <Signup />
+              </PublicRoute>
+            }
+          />
           <Route path="/*" element={
-            <div className="flex min-h-screen">
-              {/* Sidebar */}
-              <Sidebar />
-              
-              {/* Main Content Area */}
-              <div className={`flex-1 min-w-0 ${
-                theme.sidebarMode === 'hidden' ? 'ml-0' :
-                theme.sidebarMode === 'collapsed' ? 'ml-16' : 'ml-60'
-              } transition-all duration-300`}>
+            <ProtectedRoute>
+              <div className="flex min-h-screen">
+                {/* Sidebar */}
+                <Sidebar />
                 
-                {/* Top Navigation */}
-                <TopBar />
-                
-                {/* Error Banner */}
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mx-6 mt-6 bg-rose-500/20 border border-rose-500/30 rounded-xl p-4 flex items-center space-x-3"
-                  >
-                    <AlertTriangle className="w-5 h-5 text-rose-400" />
-                    <div>
-                      <div className="font-medium text-rose-400">System Error</div>
-                      <div className="text-sm text-rose-400/80">{error}</div>
-                    </div>
-                    <button 
-                      onClick={() => setError(null)}
-                      className="ml-auto text-rose-400 hover:text-rose-300"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </motion.div>
-                )}
-                
-                {/* Page Content */}
-                <div className={`${
-                  theme.density === 'compact' ? 'p-4' :
-                  theme.density === 'comfortable' ? 'p-6' :
-                  'p-8'
+                {/* Main Content Area */}
+                <div className={`flex-1 min-w-0 ${
+                  theme.sidebarMode === 'hidden' ? 'ml-0' :
+                  theme.sidebarMode === 'collapsed' ? 'ml-16' : 'ml-60'
                 } transition-all duration-300`}>
                   
-                  <Routes>
-                    <Route path="/dashboard" element={<DashboardPage />} />
-                    <Route path="/signals" element={<ActiveSignalsPage />} />
-                    <Route path="/sector" element={<SectorAnalysisPage />} />
-                    <Route path="/peers" element={<PeerBenchmarkingPage />} />
-                    <Route path="/audit" element={<AuditTrailPage />} />
-                    <Route path="/configs" element={<ConfigurationsPage />} />
-                  </Routes>
+                  {/* Top Navigation */}
+                  <TopBar />
+                  
+                  {/* Error Banner */}
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mx-6 mt-6 bg-rose-500/20 border border-rose-500/30 rounded-xl p-4 flex items-center space-x-3"
+                    >
+                      <AlertTriangle className="w-5 h-5 text-rose-400" />
+                      <div>
+                        <div className="font-medium text-rose-400">System Error</div>
+                        <div className="text-sm text-rose-400/80">{error}</div>
+                      </div>
+                      <button 
+                        onClick={() => setError(null)}
+                        className="ml-auto text-rose-400 hover:text-rose-300"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  )}
+                  
+                  {/* Page Content */}
+                  <div className={`${
+                    theme.density === 'compact' ? 'p-4' :
+                    theme.density === 'comfortable' ? 'p-6' :
+                    'p-8'
+                  } transition-all duration-300`}>
+                    
+                    <Routes>
+                      <Route path="/dashboard" element={<RoleDashboardPage />} />
+                      <Route path="/signals" element={<ActiveSignalsPage />} />
+                      <Route path="/sector" element={<SectorAnalysisPage />} />
+                      <Route path="/peers" element={<PeerBenchmarkingPage />} />
+                      <Route path="/audit" element={<AuditTrailPage />} />
+                      <Route path="/configs" element={<ConfigurationsPage />} />
+                      <Route path="/upload" element={<UploadData />} />
+                      <Route path="/org-history" element={<OrgHistory />} />
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    </Routes>
+                  </div>
                 </div>
               </div>
-            </div>
+            </ProtectedRoute>
           } />
         </Routes>
       </div>

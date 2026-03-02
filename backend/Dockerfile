@@ -19,15 +19,27 @@ COPY agents/ agents/
 COPY orchestrator/ orchestrator/
 COPY features/ features/
 COPY synthetic_financial_gen/ synthetic_financial_gen/
+COPY database/ database/
+COPY routes/ routes/
+COPY middleware/ middleware/
+COPY audit/ audit/
+COPY data/ data/
+COPY explainability/ explainability/
+COPY evaluation/ evaluation/
+COPY utils/ utils/
 COPY out/ out/
 COPY config.yaml .
-COPY .env .
+COPY .env* ./
 
 # Environment variables for API Keys
 ENV GROQ_API_KEY_1=""
 ENV GROQ_API_KEY_2=""
 ENV GEMINI_API_KEY=""
 ENV ALPHA_VANTAGE_API_KEY=""
+ENV MONGODB_URL=""
+ENV FIREBASE_PROJECT_ID=""
+ENV FIREBASE_CLIENT_EMAIL=""
+ENV FIREBASE_PRIVATE_KEY=""
 
 # Expose port
 EXPOSE 8000
