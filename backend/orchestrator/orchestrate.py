@@ -77,6 +77,7 @@ async def orchestrate(
     org_industry: Optional[str] = None,
     override_features: Optional[Dict[str, Any]] = None,
     override_source: Optional[str] = None,
+    user_id: Optional[str] = None,  # Firebase UID for audit trail
 ) -> Dict[str, Any]:
     start_time = time.time()
     request_id = f"req-{uuid.uuid4().hex[:8]}"
@@ -408,7 +409,7 @@ async def orchestrate(
             "agents_called": list(agents.keys()),
             "degraded_agents": degraded_agents,
             "result": final_output.model_dump()
-        })
+        }, user_id=user_id)
     except Exception as e:
         logger.warning(f"Audit persist failed: {e}")
     

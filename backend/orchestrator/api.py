@@ -54,21 +54,29 @@ async def health():
 class PredictRequest(BaseModel):
     company_id: str
     as_of_date: str = "2024-12-31"
+    user_id: Optional[str] = None  # Firebase UID for user isolation
 
 @app.post("/predict")
 @app.post("/api/predict")
 async def predict(request: PredictRequest):
     try:
-        result = await orchestrate(request.company_id, request.as_of_date)
+        result = await orchestrate(
+            request.company_id, 
+            request.as_of_date,
+            user_id=request.user_id
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/audit")
 @app.get("/api/audit")
-async def audit():
+async def audit(user_id: Optional[str] = None):
+    """
+    Get audit trail. If user_id provided, returns only that user's records.
+    """
     try:
-        return await get_audit_trail()
+        return await get_audit_trail(user_id=user_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
