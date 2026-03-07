@@ -4,10 +4,11 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including curl for healthcheck
 RUN apt-get update && apt-get install -y \
     build-essential \
     libgomp1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
@@ -20,8 +21,7 @@ COPY orchestrator/ orchestrator/
 COPY features/ features/
 COPY synthetic_financial_gen/ synthetic_financial_gen/
 COPY database/ database/
-COPY routes/ routes/
-COPY middleware/ middleware/
+COPY data_sources/ data_sources/
 COPY audit/ audit/
 COPY data/ data/
 COPY explainability/ explainability/
@@ -29,20 +29,15 @@ COPY evaluation/ evaluation/
 COPY utils/ utils/
 COPY out/ out/
 COPY config.yaml .
+
+# Copy .env file (will be overridden by docker-compose env_file)
 COPY .env* ./
 
-# Environment variables for API Keys
-ENV GROQ_API_KEY_1=""
-ENV GROQ_API_KEY_2=""
-ENV GEMINI_API_KEY=""
-ENV ALPHA_VANTAGE_API_KEY=""
-ENV MONGODB_URL=""
-ENV FIREBASE_PROJECT_ID=""
-ENV FIREBASE_CLIENT_EMAIL=""
-ENV FIREBASE_PRIVATE_KEY=""
+# Create necessary directories
+RUN mkdir -p /app/out /app/audit
 
 # Expose port
 EXPOSE 8000
 
 # Start command
-CMD ["uvicorn", "orchestrator.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "orchestrator.api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

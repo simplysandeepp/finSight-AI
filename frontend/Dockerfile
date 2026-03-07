@@ -1,13 +1,19 @@
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
-COPY . .
-RUN npm run build
-
+# Development build for hot reload
 FROM node:20-alpine
+
 WORKDIR /app
-RUN npm install -g serve
-COPY --from=build /app/dist ./dist
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose port
 EXPOSE 5173
-CMD ["serve", "-s", "dist", "-l", "5173"]
+
+# Start development server with host binding
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
