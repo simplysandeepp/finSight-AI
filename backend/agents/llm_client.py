@@ -1,5 +1,7 @@
 import os
 import asyncio
+import re
+import json
 from typing import List, Optional
 from loguru import logger
 import groq
@@ -7,6 +9,27 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
+
+def clean_json_response(text: str) -> str:
+    """
+    Clean LLM response to extract valid JSON.
+    Handles markdown code blocks, extra text, and common formatting issues.
+    """
+    # Remove markdown code blocks
+    if "```json" in text:
+        text = text.split("```json")[1].split("```")[0].strip()
+    elif "```" in text:
+        text = text.split("```")[1].split("```")[0].strip()
+    
+    # Remove any leading/trailing whitespace
+    text = text.strip()
+    
+    # Try to find JSON object or array
+    json_match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
+    if json_match:
+        text = json_match.group(1)
+    
+    return text
 
 class LLMUnavailableError(Exception):
     """Raised when both Groq and Gemini fail to respond."""
@@ -60,16 +83,18 @@ class LLMClient:
         client = groq.AsyncGroq(api_key=api_key)
         messages = []
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+            # Enforce JSON output in system prompt
+            enhanced_system = system_prompt + "\n\nIMPORTANT: Return ONLY valid JSON. Do not include markdown formatting, backticks, or any conversational text."
+            messages.append({"role": "system", "content": enhanced_system})
         messages.append({"role": "user", "content": prompt})
         
         completion = await client.chat.completions.create(
             model=self.groq_model,
             messages=messages,
-            temperature=0
+            temperature=0,
+            response_format={"type": "json_object"}  # Enable JSON mode
         )
         self.logger.info(f"Groq call successful using key index {self.current_groq_index}")
-        # Reset relative index is not needed as we just want to stay on a working key
         return completion.choices[0].message.content
 
     async def _call_gemini(self, prompt: str, system_prompt: str) -> str:

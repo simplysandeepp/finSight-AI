@@ -30,14 +30,37 @@ def get_company_financials(ticker: str) -> dict:
             report = quarter.get("report", {})
             ic = report.get("ic", [])  # income statement
             
-            # Extract key metrics
-            revenue = next((x["v"] for x in ic if x["concept"] == "Revenues"), None)
-            net_income = next((x["v"] for x in ic if x["concept"] == "NetIncomeLoss"), None)
+            # Extract revenue - try multiple concept names (with us-gaap_ prefix)
+            revenue = None
+            for concept in ["us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax",
+                           "us-gaap_Revenues", 
+                           "us-gaap_SalesRevenueNet", 
+                           "us-gaap_RevenueFromContractWithCustomerIncludingAssessedTax"]:
+                revenue = next((x["value"] for x in ic if x["concept"] == concept), None)
+                if revenue:
+                    break
+            
+            # Extract net income - try multiple concept names
+            net_income = None
+            for concept in ["us-gaap_NetIncomeLoss", 
+                           "us-gaap_ProfitLoss", 
+                           "us-gaap_NetIncomeLossAvailableToCommonStockholdersBasic"]:
+                net_income = next((x["value"] for x in ic if x["concept"] == concept), None)
+                if net_income:
+                    break
+            
+            # Extract operating income (proxy for EBITDA)
+            ebitda = next((x["value"] for x in ic if x["concept"] == "us-gaap_OperatingIncomeLoss"), None)
+            
+            # Get the period date
+            period_date = quarter.get("endDate", "").split()[0] if quarter.get("endDate") else None
             
             records.append({
-                "date": quarter.get("period"),
+                "date": period_date,
                 "revenue": revenue / 1e6 if revenue else None,   # convert to millions
                 "net_income": net_income / 1e6 if net_income else None,
+                "ebitda": ebitda / 1e6 if ebitda else None,
+                "operating_income": ebitda / 1e6 if ebitda else None,
                 "ticker": ticker
             })
         

@@ -1,61 +1,63 @@
 ﻿// ================================================================
 // FinSight AI - Minimal App Router
 // Backend APIs intact - Simple grid UI
+// TODO: re-enable for production - Firebase auth currently commented out
 // ================================================================
 
 import React, { useState } from 'react';
 import { BrowserRouter, Navigate, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, BarChart } from 'lucide-react';
-import Landing from './pages/Landing.jsx';
-import Login from './pages/Login.jsx';
-import Signup from './pages/Signup.jsx';
-import { useAuth } from './context/AuthContext.jsx';
-import RoleSelectModal from './components/RoleSelectModal.jsx';
+import { Menu, X, BarChart } from 'lucide-react';
+// TODO: re-enable for production - Firebase auth pages
+// import Landing from './pages/Landing.jsx';
+// import Login from './pages/Login.jsx';
+// import Signup from './pages/Signup.jsx';
+// import { useAuth } from './context/AuthContext.jsx';
+// import RoleSelectModal from './components/RoleSelectModal.jsx';
 import SimpleDashboard from './pages/SimpleDashboard.jsx';
-import { signOut } from 'firebase/auth';
-import { auth } from './firebase/config';
+// import { signOut } from 'firebase/auth';
+// import { auth } from './firebase/config';
 
 // ================================================================
-// AUTH COMPONENTS
+// AUTH COMPONENTS - TODO: re-enable for production
 // ================================================================
-const AuthGateLoader = () => (
-  <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
-    <div className="text-zinc-400 text-sm tracking-[0.2em] uppercase">Loading FinSight...</div>
-  </div>
-);
+// const AuthGateLoader = () => (
+//   <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
+//     <div className="text-zinc-400 text-sm tracking-[0.2em] uppercase">Loading FinSight...</div>
+//   </div>
+// );
 
-const ProtectedRoute = ({ children }) => {
-  const { user, loading, firestoreError } = useAuth();
-  const location = useLocation();
+// const ProtectedRoute = ({ children }) => {
+//   const { user, loading, firestoreError } = useAuth();
+//   const location = useLocation();
 
-  if (loading) return <AuthGateLoader />;
+//   if (loading) return <AuthGateLoader />;
   
-  if (firestoreError) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">Error loading user data</p>
-          <p className="text-zinc-500 text-sm">{firestoreError}</p>
-        </div>
-      </div>
-    );
-  }
+//   if (firestoreError) {
+//     return (
+//       <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
+//         <div className="text-center">
+//           <p className="text-red-400 mb-4">Error loading user data</p>
+//           <p className="text-zinc-500 text-sm">{firestoreError}</p>
+//         </div>
+//       </div>
+//     );
+//   }
   
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
+//   if (!user) {
+//     return <Navigate to="/login" state={{ from: location }} replace />;
+//   }
   
-  return children;
-};
+//   return children;
+// };
 
-const PublicRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+// const PublicRoute = ({ children }) => {
+//   const { user, loading } = useAuth();
 
-  if (loading) return <AuthGateLoader />;
-  if (user) return <Navigate to="/dashboard" replace />;
+//   if (loading) return <AuthGateLoader />;
+//   if (user) return <Navigate to="/dashboard" replace />;
   
-  return children;
-};
+//   return children;
+// };
 
 // ================================================================
 // MAIN APP
@@ -104,17 +106,18 @@ const App = () => {
   // TOP BAR
   // ================================================================
   const TopBar = () => {
-    const navigate = useNavigate();
-    const { userRole, user } = useAuth();
+    // TODO: re-enable for production - Firebase auth
+    // const navigate = useNavigate();
+    // const { userRole, user } = useAuth();
 
-    const handleLogout = async () => {
-      try {
-        await signOut(auth);
-        navigate('/login');
-      } catch (error) {
-        console.error('Logout error:', error);
-      }
-    };
+    // const handleLogout = async () => {
+    //   try {
+    //     await signOut(auth);
+    //     navigate('/login');
+    //   } catch (error) {
+    //     console.error('Logout error:', error);
+    //   }
+    // };
 
     return (
       <div className="fixed top-0 right-0 left-0 h-16 bg-[#0a0a0b] border-b border-white/[0.06] flex items-center justify-between px-6 z-30">
@@ -126,7 +129,9 @@ const App = () => {
         </button>
 
         <div className="flex items-center space-x-4">
-          <button
+          <div className="text-emerald-400 text-sm">FinSight AI - Demo Mode</div>
+          {/* TODO: re-enable for production - Role selector and logout */}
+          {/* <button
             onClick={() => setShowRoleModal(true)}
             className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg text-sm border border-emerald-500/20"
           >
@@ -139,7 +144,7 @@ const App = () => {
           >
             <LogOut className="w-4 h-4" />
             <span className="text-sm">Logout</span>
-          </button>
+          </button> */}
         </div>
       </div>
     );
@@ -158,27 +163,30 @@ const App = () => {
             {children}
           </div>
         </div>
-        {showRoleModal && <RoleSelectModal onClose={() => setShowRoleModal(false)} />}
+        {/* TODO: re-enable for production - Role modal */}
+        {/* {showRoleModal && <RoleSelectModal onClose={() => setShowRoleModal(false)} />} */}
       </div>
     );
   };
 
   // ================================================================
-  // ROUTES
+  // ROUTES - TODO: re-enable auth routes for production
   // ================================================================
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+        {/* Direct access to dashboard - no auth required for local dev */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<DashboardLayout><SimpleDashboard /></DashboardLayout>} />
+
+        {/* TODO: re-enable for production - Auth routes */}
+        {/* <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
-
-        {/* Protected Routes */}
-        <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout><SimpleDashboard /></DashboardLayout></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout><SimpleDashboard /></DashboardLayout></ProtectedRoute>} /> */}
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   );

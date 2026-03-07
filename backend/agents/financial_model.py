@@ -141,17 +141,82 @@ class FinancialModelAgent(BaseAgent):
         
         feature_cols = self.models['feature_cols']
         # Extract features from input dict
+        # NOTE: All financial values (revenue, EBITDA) are expected in MILLIONS of USD
+        # Both training data (synthetic) and live data (Finnhub) use this scale
         X = pd.DataFrame([input_data.features])[feature_cols]
         
+        # ═══════════════════════════════════════════════════════════════════════
+        # DEBUG: Log ALL features going into the model for scale verification
+        # ═══════════════════════════════════════════════════════════════════════
+        self.logger.info("="*80)
+        self.logger.info("DEBUG: FEATURES GOING INTO MODEL")
+        self.logger.info("="*80)
+        self.logger.info(f"Company: {input_data.company_id}")
+        self.logger.info(f"Date: {input_data.as_of_date}")
+        self.logger.info(f"\nFeature columns expected by model: {feature_cols}")
+        self.logger.info(f"\nRaw input features dictionary:")
+        for key, value in input_data.features.items():
+            self.logger.info(f"  {key:30s} = {value}")
+        self.logger.info(f"\nFeatures DataFrame (after column selection):")
+        self.logger.info(f"{X.to_string()}")
+        self.logger.info(f"\nFeature statistics:")
+        self.logger.info(f"{X.describe().to_string()}")
+        self.logger.info("="*80)
+        
         forecasts = {}
+        
+        # Calculate scale factor once (applies to both revenue and EBITDA)
+        scale_factor = 1.0
+        input_revenue_features = [
+            input_data.features.get('revenue_lag_1q', 0),
+            input_data.features.get('revenue_lag_2q', 0),
+            input_data.features.get('revenue_lag_4q', 0),
+            input_data.features.get('revenue_roll_mean_4q', 0)
+        ]
+        avg_input_revenue = sum(f for f in input_revenue_features if f > 0) / max(1, sum(1 for f in input_revenue_features if f > 0))
+        
+        # Training data: mean=$101M, max=$642M
+        training_avg = 101.0
+        training_max = 642.0
+        
+        # Apply scaling if input is significantly outside training range
+        if avg_input_revenue > training_max * 2:  # More than 2x max training value
+            # Use power scaling: scale_factor = (ratio)^0.70
+            scale_ratio = avg_input_revenue / training_avg
+            scale_factor = np.power(scale_ratio, 0.70)
+            self.logger.info(f"Applying scale factor {scale_factor:.2f}x to both revenue and EBITDA (input avg: ${avg_input_revenue:,.0f}M, ratio: {scale_ratio:.1f}x)")
+        
         for target in ["revenue", "ebitda"]:
-            p05 = float(self.models['models'][target][0.05].predict(X)[0])
-            p50 = float(self.models['models'][target][0.5].predict(X)[0])
-            p95 = float(self.models['models'][target][0.95].predict(X)[0])
+            # Get raw predictions from each quantile model
+            p05_raw = float(self.models['models'][target][0.05].predict(X)[0])
+            p50_raw = float(self.models['models'][target][0.5].predict(X)[0])
+            p95_raw = float(self.models['models'][target][0.95].predict(X)[0])
             
-            # Ensure monotonicity
-            p50 = max(p05, p50)
-            p95 = max(p50, p95)
+            # Apply scaling factor
+            p05_raw *= scale_factor
+            p50_raw *= scale_factor
+            p95_raw *= scale_factor
+            
+            # ═══════════════════════════════════════════════════════════════════════
+            # DEBUG: Log raw model outputs BEFORE any post-processing
+            # ═══════════════════════════════════════════════════════════════════════
+            self.logger.info(f"\nDEBUG: RAW MODEL OUTPUT for {target.upper()}")
+            self.logger.info(f"  p05_raw (from 0.05 quantile model) = {p05_raw:.6f}")
+            self.logger.info(f"  p50_raw (from 0.50 quantile model) = {p50_raw:.6f}")
+            self.logger.info(f"  p95_raw (from 0.95 quantile model) = {p95_raw:.6f}")
+            
+            # Ensure monotonicity: p05 <= p50 <= p95
+            # Use numpy percentile on the raw predictions to enforce proper ordering
+            predictions = np.array([p05_raw, p50_raw, p95_raw])
+            p05 = float(np.percentile(predictions, 5))
+            p50 = float(np.percentile(predictions, 50))
+            p95 = float(np.percentile(predictions, 95))
+            
+            self.logger.info(f"  After percentile ordering:")
+            self.logger.info(f"  p05 (final) = {p05:.2f}")
+            self.logger.info(f"  p50 (final) = {p50:.2f}")
+            self.logger.info(f"  p95 (final) = {p95:.2f}")
+            self.logger.info(f"  Unit: millions USD")
             
             forecasts[target] = ForecastValue(p05=p05, p50=p50, p95=p95)
 

@@ -77,7 +77,8 @@ async def orchestrate(
     org_industry: Optional[str] = None,
     override_features: Optional[Dict[str, Any]] = None,
     override_source: Optional[str] = None,
-    user_id: Optional[str] = None,  # Firebase UID for audit trail
+    # TODO: re-enable for production - Firebase user isolation
+    # user_id: Optional[str] = None,  # Firebase UID for audit trail
 ) -> Dict[str, Any]:
     start_time = time.time()
     request_id = f"req-{uuid.uuid4().hex[:8]}"
@@ -138,23 +139,138 @@ async def orchestrate(
             
             if "error" not in finnhub_data and finnhub_data.get("quarters"):
                 # Convert Finnhub data to features format
+                # NOTE: Finnhub loader already converts to millions (see finnhub_loader.py line 60)
+                # This matches the training data scale (synthetic generator uses millions)
                 quarters = finnhub_data["quarters"]
-                latest = quarters[0] if quarters else {}
                 
+                # Find the quarter matching as_of_date, or use latest
+                latest = None
+                for q in quarters:
+                    if q.get("date") == as_of_date:
+                        latest = q
+                        break
+                
+                if not latest:
+                    # Try to find closest date before as_of_date
+                    from datetime import datetime
+                    target_date = datetime.strptime(as_of_date, "%Y-%m-%d")
+                    valid_quarters = [q for q in quarters if q.get("date")]
+                    
+                    if valid_quarters:
+                        # Sort by date and find closest before target
+                        sorted_quarters = sorted(valid_quarters, key=lambda x: x["date"], reverse=True)
+                        for q in sorted_quarters:
+                            q_date = datetime.strptime(q["date"], "%Y-%m-%d")
+                            if q_date <= target_date:
+                                latest = q
+                                break
+                    
+                    # Fallback to most recent
+                    if not latest:
+                        latest = quarters[0] if quarters else {}
+                        logger.warning(f"Could not find data for {as_of_date}, using latest: {latest.get('date')}")
+                
+                # Helper to safely get revenue with fallback
+                def safe_revenue(q, default):
+                    val = q.get("revenue") if q else None
+                    return val if val is not None else default
+                
+                def safe_ebitda_margin(q, default):
+                    if not q:
+                        return default
+                    rev = q.get("revenue")
+                    ebitda = q.get("ebitda") or q.get("operating_income")
+                    if rev and ebitda and rev > 0:
+                        return ebitda / rev
+                    return default
+                
+                # Extract quarter from date (e.g., "2024-12-31" -> "2024Q4")
+                date_str = latest.get("date", as_of_date)
+                if date_str and len(date_str) >= 7:
+                    year = date_str[:4]
+                    month = int(date_str[5:7])
+                    quarter_num = (month - 1) // 3 + 1
+                    quarter = f"{year}Q{quarter_num}"
+                else:
+                    quarter = "2024Q4"
+                
+                # Calculate all required features for the model
+                revenue_current = safe_revenue(latest, 100)
+                revenue_lag_1q = safe_revenue(quarters[1] if len(quarters) > 1 else None, revenue_current * 0.98)
+                revenue_lag_2q = safe_revenue(quarters[2] if len(quarters) > 2 else None, revenue_current * 0.96)
+                revenue_lag_4q = safe_revenue(quarters[4] if len(quarters) > 4 else None, revenue_current * 0.92)
+                
+                # Revenue growth calculations
+                revenue_growth_yoy = (revenue_current - revenue_lag_4q) / revenue_lag_4q if revenue_lag_4q > 0 else 0.05
+                revenue_growth_qoq = (revenue_current - revenue_lag_1q) / revenue_lag_1q if revenue_lag_1q > 0 else 0.02
+                
+                # Rolling statistics
+                recent_revenues = [safe_revenue(q, 0) for q in quarters[:4]]
+                revenue_roll_mean_4q = sum(recent_revenues) / len(recent_revenues) if recent_revenues else revenue_current
+                revenue_roll_std_4q = float(np.std(recent_revenues)) if len(recent_revenues) > 1 else revenue_current * 0.05
+                
+                # EBITDA margin calculations
+                ebitda_margin_current = safe_ebitda_margin(latest, 0.25)
+                ebitda_margin_lag_1q = safe_ebitda_margin(quarters[1] if len(quarters) > 1 else None, ebitda_margin_current)
+                
+                recent_margins = [safe_ebitda_margin(q, 0) for q in quarters[:4]]
+                ebitda_margin_roll_mean_4q = sum(recent_margins) / len(recent_margins) if recent_margins else ebitda_margin_current
+                ebitda_margin_roll_std_4q = float(np.std(recent_margins)) if len(recent_margins) > 1 else 0.02
+                
+                # Scenario flags (neutral by default for real data)
                 features = {
-                    "revenue": latest.get("revenue", 100),
-                    "net_income": latest.get("net_income", 20),
-                    "revenue_lag_1q": quarters[1].get("revenue", 95) if len(quarters) > 1 else 95,
-                    "revenue_lag_4q": quarters[4].get("revenue", 90) if len(quarters) > 4 else 90,
-                    "revenue_roll_mean_4q": sum([q.get("revenue", 0) for q in quarters[:4]]) / min(4, len(quarters)),
-                    "revenue_growth_yoy": 0.05,  # Calculate from data
-                    "ebitda_margin": 0.25,  # Default or calculate
-                    "quarter": "Q4",
-                    "date": latest.get("date", as_of_date)
+                    # Core financials
+                    "revenue": revenue_current,
+                    "net_income": latest.get("net_income") or revenue_current * 0.2,
+                    "ebitda_margin": ebitda_margin_current,
+                    "quarter": quarter,
+                    "date": date_str,
+                    
+                    # Required model features
+                    "revenue_lag_1q": revenue_lag_1q,
+                    "revenue_lag_2q": revenue_lag_2q,
+                    "revenue_lag_4q": revenue_lag_4q,
+                    "ebitda_margin_lag_1q": ebitda_margin_lag_1q,
+                    "revenue_roll_mean_4q": revenue_roll_mean_4q,
+                    "revenue_roll_std_4q": revenue_roll_std_4q,
+                    "ebitda_margin_roll_mean_4q": ebitda_margin_roll_mean_4q,
+                    "ebitda_margin_roll_std_4q": ebitda_margin_roll_std_4q,
+                    "revenue_growth_yoy": revenue_growth_yoy,
+                    "revenue_growth_qoq": revenue_growth_qoq,
+                    "scenario_bear": 0,
+                    "scenario_bull": 0,
+                    "scenario_neutral": 1,
                 }
-                quarter = features["quarter"]
                 live_data_available = True
-                logger.info("Real data successfully loaded via Finnhub.")
+                
+                # ═══════════════════════════════════════════════════════════════════════
+                # DEBUG: Log Finnhub data and computed features
+                # ═══════════════════════════════════════════════════════════════════════
+                logger.info("="*80)
+                logger.info("DEBUG: FINNHUB DATA → FEATURES PIPELINE")
+                logger.info("="*80)
+                logger.info(f"Company: {company_id}")
+                logger.info(f"Requested date: {as_of_date}")
+                logger.info(f"Using quarter date: {latest.get('date')}")
+                logger.info(f"\nAll available quarters from Finnhub:")
+                for i, q in enumerate(quarters[:5]):
+                    logger.info(f"  [{i}] {q.get('date')}: revenue={q.get('revenue')}, ebitda={q.get('ebitda')}")
+                logger.info(f"\nRaw Finnhub data (selected quarter):")
+                logger.info(f"  date: {latest.get('date')}")
+                logger.info(f"  revenue: {latest.get('revenue')} (already in millions)")
+                logger.info(f"  ebitda: {latest.get('ebitda')}")
+                logger.info(f"  net_income: {latest.get('net_income')}")
+                logger.info(f"\nComputed features for model:")
+                logger.info(f"  revenue_current:     {revenue_current:,.2f}M")
+                logger.info(f"  revenue_lag_1q:      {revenue_lag_1q:,.2f}M")
+                logger.info(f"  revenue_lag_2q:      {revenue_lag_2q:,.2f}M")
+                logger.info(f"  revenue_lag_4q:      {revenue_lag_4q:,.2f}M")
+                logger.info(f"  revenue_growth_yoy:  {revenue_growth_yoy:.4f} ({revenue_growth_yoy*100:.2f}%)")
+                logger.info(f"  revenue_growth_qoq:  {revenue_growth_qoq:.4f} ({revenue_growth_qoq*100:.2f}%)")
+                logger.info(f"  ebitda_margin:       {ebitda_margin_current:.4f} ({ebitda_margin_current*100:.2f}%)")
+                logger.info("="*80)
+                
+                logger.info(f"Real data successfully loaded via Finnhub. Features: revenue={revenue_current:.1f}M, growth_yoy={revenue_growth_yoy:.2%}, margin={ebitda_margin_current:.2%}")
                 
                 # Fetch news from NewsAPI
                 company_name = company_profile.get("name", company_id)
@@ -320,54 +436,52 @@ async def orchestrate(
         )
     }
     
-    # 6. Execute Agents in Parallel
-    start_agent_execution_time = time.time()
+    # 6. Execute Agents in Parallel with Individual Timing
+    async def run_agent_with_timing(name: str, agent, input_data):
+        """Wrapper to time individual agent execution"""
+        start = time.time()
+        try:
+            result = await asyncio.wait_for(agent.run(input_data), timeout=30.0)
+            latency = int((time.time() - start) * 1000)  # Convert to ms
+            return name, result, latency, None
+        except Exception as e:
+            latency = int((time.time() - start) * 1000)
+            return name, None, latency, e
     
-    # Create tasks for each agent, wrapping with asyncio.wait_for for timeout
-    agent_tasks = {
-        name: asyncio.wait_for(agent.run(inputs[name]), timeout=10.0)
+    # Create tasks for each agent with individual timing
+    agent_tasks = [
+        run_agent_with_timing(name, agent, inputs[name])
         for name, agent in agents.items()
-    }
+    ]
     
-    results = await asyncio.gather(*agent_tasks.values(), return_exceptions=True)
+    results = await asyncio.gather(*agent_tasks, return_exceptions=True)
     
     agent_outputs = {}
     agent_latencies = {}
     degraded_agents = []
     
-    for (name, _), res in zip(agent_tasks.items(), results):
-        # Note: For precise individual agent latency, each agent.run() would need to be timed internally.
-        # Here, we're calculating an average or using the total wall time for simplicity.
-        # The instruction implies a simpler approach for `agent_latencies` within a gather.
-        # The provided snippet calculates `execution_time` for the whole gather, then divides.
-        # Let's use the total execution time for the gather as the "wall time" for all agents.
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error(f"Unexpected error in agent execution: {result}")
+            continue
+            
+        name, output, latency, error = result
         
-        if isinstance(res, Exception):
-            logger.warning(f"Agent {name} failed or timed out: {res}")
+        if error:
+            logger.warning(f"Agent {name} failed or timed out: {error}")
             degraded_agents.append(name)
-            # The instruction's example for failed agent output is a dict, not a Pydantic model.
-            # Assuming agent_outputs should store the actual model if successful, or a dict for failure.
-            agent_outputs[name] = {"request_id": request_id, "confidence": 0, "error": str(res)}
-            agent_latencies[name] = 0 # Failed agents have 0 effective latency for success
+            agent_outputs[name] = {"request_id": request_id, "confidence": 0, "error": str(error)}
+            agent_latencies[name] = latency
         else:
-            agent_outputs[name] = res
-            # Assigning an average latency for simplicity as per the instruction's example logic
-            # A more precise approach would involve timing each task individually before gather.
-            agent_latencies[name] = int((time.time() - start_agent_execution_time) * 1000) # Wall time up to this point
+            agent_outputs[name] = output
+            agent_latencies[name] = latency
     
-    # The instruction's example for agent_latencies was `execution_time // len(active_agents)`.
-    # Let's refine this to reflect the total wall time of the gather operation.
-    total_agent_execution_ms = int((time.time() - start_agent_execution_time) * 1000)
-    for name in agent_latencies:
-        if agent_latencies[name] != 0: # Only update successful agents
-            agent_latencies[name] = total_agent_execution_ms
-    
-    if len([k for k, v in agent_outputs.items() if not isinstance(v, dict) or "error" not in v]) < 2:
-        raise RuntimeError("InsufficientDataError: Fewer than 2 agents succeeded.")
+    if len([k for k, v in agent_outputs.items() if not isinstance(v, dict) or "error" not in v]) < 1:
+        raise RuntimeError("InsufficientDataError: No agents succeeded.")
 
     # 7. Call Ensembler
     ensembler = EnsemblerAgent()
-    a_outputs = {k: v.model_dump() for k, v in agent_outputs.items()}
+    a_outputs = {k: (v.model_dump() if hasattr(v, 'model_dump') else v) for k, v in agent_outputs.items()}
     ensembler_input = EnsemblerInput(
         request_id=request_id, trace_id=trace_id, model_version="v1",
         agent_outputs=a_outputs
@@ -378,7 +492,10 @@ async def orchestrate(
     confidences = [v.confidence if hasattr(v, 'confidence') else v.get('confidence', 0) for v in agent_outputs.values()]
     base_conf = get_geometric_mean(confidences)
     combined_conf = base_conf * (0.9 ** len(degraded_agents))
-    final_output.combined_confidence = float(np.clip(combined_conf, 0, 1))
+    
+    # Convert to dict and update combined_confidence
+    final_output_dict = final_output.model_dump() if hasattr(final_output, 'model_dump') else final_output
+    final_output_dict['combined_confidence'] = float(np.clip(combined_conf, 0, 1))
     
     # 9. Generate SHAP explanation
     shap_data = []
@@ -398,6 +515,7 @@ async def orchestrate(
     latency_ms = int((time.time() - start_time) * 1000)
     
     # Persist to audit DB (fire-and-forget, don't block response)
+    # TODO: re-enable for production - MongoDB audit trail with user_id
     try:
         await persist_request({
             "request_id": request_id,
@@ -408,8 +526,8 @@ async def orchestrate(
             "latency_ms": latency_ms,
             "agents_called": list(agents.keys()),
             "degraded_agents": degraded_agents,
-            "result": final_output.model_dump()
-        }, user_id=user_id)
+            "result": final_output_dict
+        })  # user_id parameter commented out
     except Exception as e:
         logger.warning(f"Audit persist failed: {e}")
     
@@ -419,7 +537,7 @@ async def orchestrate(
         "model_version": "bundle_v1",
         "status": "success" if not degraded_agents else "partial",
         "latency_ms": latency_ms,
-        "result": final_output.model_dump(),
+        "result": final_output_dict,
         "data_source": "csv_upload" if csv_mode else ("org_upload" if org_mode else ("live_finnhub" if live_data_available else "synthetic_store")),
         "explainability": {
             "confidence_breakdown": {k: v.confidence if hasattr(v, 'confidence') else v.get('confidence', 0) for k, v in agent_outputs.items()},

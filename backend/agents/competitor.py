@@ -3,6 +3,7 @@ import asyncio
 from typing import List, Dict, Any
 from pydantic import Field, BaseModel
 from .base import BaseAgent, BaseAgentInput, BaseAgentOutput
+from .llm_client import clean_json_response
 
 class PeerBenchmark(BaseModel):
     peer_id: str
@@ -31,9 +32,8 @@ class CompetitorAgent(BaseAgent):
                 timeout=10.0
             )
             
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            
+            # Clean JSON response
+            response_text = clean_json_response(response_text)
             res_json = json.loads(response_text)
             
             # Robust parsing for peer benchmarks

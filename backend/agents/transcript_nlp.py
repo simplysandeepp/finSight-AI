@@ -61,13 +61,22 @@ class TranscriptNLPAgent(BaseAgent):
     async def run(self, input_data: TranscriptNLPInput) -> TranscriptNLPOutput:
         self.logger.info(f"Processing transcript for {input_data.company_id} {input_data.quarter}")
         
-        prompt = f"Metadata: {input_data.dict(exclude={'transcript_text'})}\n\nTranscript: {input_data.transcript_text}"
+        # Chunk large transcripts (>5000 chars) to avoid timeouts
+        transcript = input_data.transcript_text
+        max_chunk_size = 5000
+        
+        if len(transcript) > max_chunk_size:
+            self.logger.info(f"Transcript is {len(transcript)} chars, chunking into smaller pieces")
+            # Take first 2500 chars (intro/management remarks) and last 2500 chars (Q&A summary)
+            transcript = transcript[:2500] + "\n\n[...middle section omitted...]\n\n" + transcript[-2500:]
+        
+        prompt = f"Metadata: {input_data.dict(exclude={'transcript_text'})}\n\nTranscript: {transcript}"
         
         try:
-            # 10s asyncio timeout as per requirement
+            # Increased timeout to 15s for transcript processing
             response_text = await asyncio.wait_for(
                 self.call_llm(prompt, self._get_system_prompt()),
-                timeout=10.0
+                timeout=15.0
             )
             
             # Simple JSON cleanup in case of markdown wrapping

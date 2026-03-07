@@ -1,0 +1,21 @@
+1. The ML Model's "Mega-Cap" Bias (Data Science)
+Your code correctly predicted Apple's massive ~$140B revenue, but it predicted Apple's EBITDA at **$13.8B**. In reality, Apple's quarterly EBITDA is usually north of $30 Billion.
+
+Why this happens: Your .pkl model might have been trained on a dataset that was heavily skewed toward normal-sized companies. When it sees an absolute juggernaut like Apple, it underestimates their profit margins.
+
+The fix for later: You don't need to touch the API code. Eventually, you just need to retrain financial_model.pkl with more diverse historical data (especially targeting mega-cap tech) and swap the file out.
+
+2. The Empty LLM Arrays (Prompt Engineering)
+Take a look at your JSON output:
+
+JSON
+"key_risks": [],
+"key_strengths": []
+Your pipeline is structurally ready to accept these lists, but your LLM agents (likely news_macro or transcript_nlp) aren't populating them. Also, your simple_summary ("The company shows stable performance...") reads like a generic default fallback.
+
+The fix for later: Tweak the system prompts you send to Groq. Explicitly tell the LLM: "You must extract at least two key_risks and two key_strengths from the transcript and return them as a JSON list."
+
+3. Re-enable the Database (Infrastructure)
+Your logs earlier showed Audit trail skipped (MongoDB commented out).
+
+The fix for later: Before you deploy this to a live server (like AWS or Render), make sure to uncomment your database connection so you actually save these predictions!
