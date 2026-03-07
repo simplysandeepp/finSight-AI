@@ -17,3 +17,8 @@ setup.bat
 *.jsonl
 .vscode/
 .idea/
+*.sqlite
+dist/
+build/
+.vite/
+.git/
