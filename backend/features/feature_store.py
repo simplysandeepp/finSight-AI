@@ -17,7 +17,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 FEATURES_OUT = BASE_DIR / "out" / "features_v1.pkl"
 MANIFEST_OUT = BASE_DIR / "out" / "feature_manifest.json"
-DATA_IN = BASE_DIR / "out" / "synthetic_financials.csv"
+DATA_IN_REAL = BASE_DIR / "out" / "real_training_data.csv"
+DATA_IN_SYNTHETIC = BASE_DIR / "out" / "synthetic_financials.csv"
 
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -107,12 +108,19 @@ def temporal_split(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Dat
     return train_df, val_df, test_df, manifest
 
 def main():
-    if not DATA_IN.exists():
-        logger.error(f"Input file {DATA_IN} not found. Run generator first.")
+    # Use real data if available, fall back to synthetic
+    if DATA_IN_REAL.exists():
+        data_file = DATA_IN_REAL
+        logger.info(f"Using REAL training data from {data_file}")
+    elif DATA_IN_SYNTHETIC.exists():
+        data_file = DATA_IN_SYNTHETIC
+        logger.warning(f"Real data not found. Using synthetic data from {data_file}")
+    else:
+        logger.error(f"No training data found. Run collect_training_data.py or generator first.")
         return
 
-    logger.info(f"Loading data from {DATA_IN}")
-    df = pd.read_csv(DATA_IN)
+    logger.info(f"Loading data from {data_file}")
+    df = pd.read_csv(data_file)
     
     df_featured = compute_features(df)
     

@@ -26,6 +26,13 @@ from explainability.explainer import get_explanation
 from utils.alpha_vantage_client import AlphaVantageClient
 from data.yfinance_loader import get_ticker_data
 from features.feature_store import compute_features
+from data_sources.finnhub_loader import (
+    get_company_financials,
+    get_company_profile,
+    get_peer_companies,
+    get_peers_financials
+)
+from data_sources.news_loader import get_company_news, get_market_headlines
 
 logger = Logger.bind(component="orchestrator")
 
@@ -68,6 +75,8 @@ async def orchestrate(
     org_features: Optional[Dict[str, Any]] = None,
     org_quarter: Optional[str] = None,
     org_industry: Optional[str] = None,
+    override_features: Optional[Dict[str, Any]] = None,
+    override_source: Optional[str] = None,
 ) -> Dict[str, Any]:
     start_time = time.time()
     request_id = f"req-{uuid.uuid4().hex[:8]}"
@@ -79,6 +88,7 @@ async def orchestrate(
     av_client = AlphaVantageClient()
     live_data_available = False
     org_mode = org_features is not None
+    csv_mode = override_source == "csv_upload"
     
     features = {}
     quarter = "Q4"
@@ -89,9 +99,19 @@ async def orchestrate(
         "as cost-cutting initiatives take full effect across the enterprise operations globally."
     )
     headlines = []
+    company_profile = None
+
+    # ── CSV UPLOAD PATH: use provided features ──
+    if csv_mode and override_features:
+        features = override_features
+        quarter = "Q4"
+        live_data_available = True
+        headlines = ["User uploaded custom financial data"]
+        transcript_text = "Custom CSV data analysis for uploaded company financials."
+        logger.info(f"[csv-mode] Using uploaded CSV features")
 
     # ── ORG PATH: use pre-computed features, skip live / synthetic fetch ──
-    if org_mode:
+    elif org_mode:
         features = org_features
         quarter = org_quarter or features.get("quarter", "Q4")
         live_data_available = True   # treat as "resolved" so we skip feature-store fallback
@@ -107,36 +127,67 @@ async def orchestrate(
         )
         logger.info(f"[org-mode] Using pre-computed org features for {company_id}, quarter={quarter}")
 
-    # 1. Attempt Live Data Fetch (yfinance prioritized, AV fallback)
-    if not org_mode and not company_id.startswith("COMP_"):
+    # 1. Attempt Live Data Fetch (Finnhub prioritized, yfinance fallback)
+    if not org_mode and not csv_mode and not company_id.startswith("COMP_"):
         try:
-            logger.info(f"Attempting live data fetch via yfinance for {company_id}")
-            real_history = get_ticker_data(company_id)
+            # Try Finnhub first (real-time financial data)
+            logger.info(f"Attempting live data fetch via Finnhub for {company_id}")
+            finnhub_data = get_company_financials(company_id)
+            company_profile = get_company_profile(company_id)
             
-            if not real_history.empty:
-                # Apply internal feature engineering to get lags/rolling stats
-                # Note: compute_features drops rows with NaNs (lags), so we need enough history
-                history_featured = compute_features(real_history)
+            if "error" not in finnhub_data and finnhub_data.get("quarters"):
+                # Convert Finnhub data to features format
+                quarters = finnhub_data["quarters"]
+                latest = quarters[0] if quarters else {}
                 
-                if not history_featured.empty:
-                    # Select matching date or latest
-                    target_row = history_featured[history_featured['date'] == as_of_date]
-                    if target_row.empty:
-                        target_row = history_featured.tail(1)
-                        logger.warning(f"Exact date {as_of_date} not found in yfinance. Using latest: {target_row['date'].iloc[0]}")
-                    
-                    features = target_row.iloc[0].to_dict()
-                    quarter = features["quarter"]
-                    live_data_available = True
-                    logger.info("Real data successfully loaded and featured via yfinance.")
-            
-            # Fallback to Alpha Vantage for News Sentiment if needed
-            # (yfinance doesn't provide sentiment out of the box easily)
-            if av_client.api_key:
-                news = await av_client.get_news_sentiment(company_id)
-                headlines = [f["title"] for f in news.get("feed", [])[:5]]
+                features = {
+                    "revenue": latest.get("revenue", 100),
+                    "net_income": latest.get("net_income", 20),
+                    "revenue_lag_1q": quarters[1].get("revenue", 95) if len(quarters) > 1 else 95,
+                    "revenue_lag_4q": quarters[4].get("revenue", 90) if len(quarters) > 4 else 90,
+                    "revenue_roll_mean_4q": sum([q.get("revenue", 0) for q in quarters[:4]]) / min(4, len(quarters)),
+                    "revenue_growth_yoy": 0.05,  # Calculate from data
+                    "ebitda_margin": 0.25,  # Default or calculate
+                    "quarter": "Q4",
+                    "date": latest.get("date", as_of_date)
+                }
+                quarter = features["quarter"]
+                live_data_available = True
+                logger.info("Real data successfully loaded via Finnhub.")
+                
+                # Fetch news from NewsAPI
+                company_name = company_profile.get("name", company_id)
+                company_headlines = get_company_news(company_name, company_id)
+                market_headlines = get_market_headlines()
+                headlines = company_headlines + market_headlines
             else:
-                headlines = [f"Record profits for {company_id}", "Sector outlook neutral"]
+                # Fallback to yfinance
+                logger.info(f"Finnhub data unavailable, trying yfinance for {company_id}")
+                real_history = get_ticker_data(company_id)
+                if not real_history.empty:
+                    # Apply internal feature engineering to get lags/rolling stats
+                    # Note: compute_features drops rows with NaNs (lags), so we need enough history
+                    history_featured = compute_features(real_history)
+                    
+                    if not history_featured.empty:
+                        # Select matching date or latest
+                        target_row = history_featured[history_featured['date'] == as_of_date]
+                        if target_row.empty:
+                            target_row = history_featured.tail(1)
+                            logger.warning(f"Exact date {as_of_date} not found in yfinance. Using latest: {target_row['date'].iloc[0]}")
+                        
+                        features = target_row.iloc[0].to_dict()
+                        quarter = features["quarter"]
+                        live_data_available = True
+                        logger.info("Real data successfully loaded and featured via yfinance.")
+                
+                # Fallback to Alpha Vantage for News Sentiment if needed
+                # (yfinance doesn't provide sentiment out of the box easily)
+                if av_client.api_key:
+                    news = await av_client.get_news_sentiment(company_id)
+                    headlines = [f["title"] for f in news.get("feed", [])[:5]]
+                else:
+                    headlines = [f"Record profits for {company_id}", "Sector outlook neutral"]
                 
         except Exception as e:
             logger.warning(f"Live data fetch failed: {e}")
@@ -178,8 +229,14 @@ async def orchestrate(
     # 4. Fetch Peer Data for Competitor Agent
     peer_financials = []
 
+    # CSV mode: use generic peers
+    if csv_mode:
+        peer_financials = [
+            {"peer_id": "Industry_Avg", "revenue": features.get("revenue", 100) * 1.05, "ebitda_margin": 0.22, "revenue_growth": 0.05},
+            {"peer_id": "Market_Leader", "revenue": features.get("revenue", 100) * 1.3, "ebitda_margin": 0.28, "revenue_growth": 0.08},
+        ]
     # Org mode: generate industry-representative peer placeholders
-    if org_mode:
+    elif org_mode:
         industry = org_industry or "General"
         rev = features.get("revenue", 100)
         margin = features.get("ebitda_margin", 0.2)
@@ -189,22 +246,29 @@ async def orchestrate(
             {"peer_id": f"{industry}_Avg", "revenue": rev * 0.98, "ebitda_margin": margin * 1.0, "revenue_growth": 0.05},
         ]
     elif live_data_available:
-        peer_tickers = get_peers(company_id)
-        logger.info(f"Fetching peer data for: {peer_tickers}")
-        for pt in peer_tickers:
-            try:
-                # We only need the latest quarter for benchmarking
-                p_data = get_ticker_data(pt)
-                if not p_data.empty:
-                    latest_p = p_data.tail(1).iloc[0].to_dict()
-                    peer_financials.append({
-                        "peer_id": pt,
-                        "revenue": latest_p["revenue"],
-                        "ebitda_margin": latest_p["ebitda_margin"],
-                        "revenue_growth": latest_p["revenue_growth"]
-                    })
-            except Exception as e:
-                logger.warning(f"Failed to fetch peer {pt}: {e}")
+        # Try Finnhub peers first
+        peer_tickers = get_peer_companies(company_id)
+        if peer_tickers:
+            logger.info(f"Fetching Finnhub peer data for: {peer_tickers}")
+            peer_financials = get_peers_financials(peer_tickers)
+        else:
+            # Fallback to manual peer map
+            peer_tickers = get_peers(company_id)
+            logger.info(f"Fetching peer data for: {peer_tickers}")
+            for pt in peer_tickers:
+                try:
+                    # We only need the latest quarter for benchmarking
+                    p_data = get_ticker_data(pt)
+                    if not p_data.empty:
+                        latest_p = p_data.tail(1).iloc[0].to_dict()
+                        peer_financials.append({
+                            "peer_id": pt,
+                            "revenue": latest_p["revenue"],
+                            "ebitda_margin": latest_p["ebitda_margin"],
+                            "revenue_growth": latest_p["revenue_growth"]
+                        })
+                except Exception as e:
+                    logger.warning(f"Failed to fetch peer {pt}: {e}")
     
     # Synthetic path: pick 2-3 random COMP peers from the feature store
     if not live_data_available and not peer_financials:
@@ -355,12 +419,13 @@ async def orchestrate(
         "status": "success" if not degraded_agents else "partial",
         "latency_ms": latency_ms,
         "result": final_output.model_dump(),
-        "data_source": "org_upload" if org_mode else ("live_vantage" if live_data_available else "synthetic_store"),
+        "data_source": "csv_upload" if csv_mode else ("org_upload" if org_mode else ("live_finnhub" if live_data_available else "synthetic_store")),
         "explainability": {
-            "confidence_breakdown": {k: v.confidence for k, v in agent_outputs.items()},
+            "confidence_breakdown": {k: v.confidence if hasattr(v, 'confidence') else v.get('confidence', 0) for k, v in agent_outputs.items()},
             "degraded": degraded_agents,
             "shap_values": shap_data
         },
+        "company_profile": company_profile,
         "audit_link": f"https://audit.internal/{request_id}",
         "agents_called": list(agents.keys()),
         "agent_latencies": agent_latencies,

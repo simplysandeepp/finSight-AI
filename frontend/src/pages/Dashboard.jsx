@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     TrendingUp, ShieldAlert, AlertCircle, Cpu, Info,
     LayoutDashboard, CheckCircle2, ExternalLink, ArrowRight
@@ -7,8 +7,14 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer
 } from 'recharts';
+import ModeToggle from '../components/ModeToggle';
+import InvestorDashboard from '../components/InvestorDashboard';
+import StartupDashboard from '../components/StartupDashboard';
 
 const Dashboard = ({ data, error, recStyles, chartData }) => {
+    const [mode, setMode] = useState("investor");
+    const companyProfile = data?.company_profile;
+
     if (error) {
         return (
             <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-6 flex flex-col items-center gap-4 text-center">
@@ -40,6 +46,22 @@ const Dashboard = ({ data, error, recStyles, chartData }) => {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
+            {/* Mode Toggle */}
+            <div className="flex justify-center mb-6">
+                <ModeToggle mode={mode} onToggle={setMode} />
+            </div>
+
+            {/* Conditional Dashboard Rendering */}
+            {mode === "investor" ? (
+                <InvestorDashboard result={data} companyProfile={companyProfile} />
+            ) : (
+                <StartupDashboard result={data} companyProfile={companyProfile} />
+            )}
+
+            {/* Original Dashboard (kept for reference) */}
+            <div className="mt-12 pt-8 border-t border-zinc-800">
+                <h3 className="text-sm text-zinc-500 mb-6 uppercase tracking-wider">Technical Details</h3>
+            
             {data.result.human_review_required && (
                 <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-5 flex items-center justify-between animate-in fade-in slide-in-from-top-4 duration-500">
                     <div className="flex items-center gap-4">
@@ -258,6 +280,7 @@ const Dashboard = ({ data, error, recStyles, chartData }) => {
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     );

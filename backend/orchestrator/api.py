@@ -8,7 +8,7 @@ FastAPI REST endpoint for predictions.
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -19,6 +19,7 @@ from audit.audit_trail import init_db, get_audit_trail
 from database.mongodb import connect_mongo, close_mongo
 from routes.upload import router as upload_router
 from routes.org_predict import router as org_predict_router
+from data_sources.csv_loader import validate_and_parse_csv
 
 app = FastAPI(title="FinSight Ai API")
 
@@ -68,6 +69,34 @@ async def predict(request: PredictRequest):
 async def audit():
     try:
         return await get_audit_trail()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/upload-csv")
+@app.post("/api/upload-csv")
+async def upload_csv(
+    file: UploadFile = File(...),
+    as_of_date: str = Form(default="2026-01-01")
+):
+    """
+    Accept a CSV file from the user, parse it,
+    and run the full agent pipeline on it.
+    """
+    content = await file.read()
+    
+    parsed = validate_and_parse_csv(content)
+    if "error" in parsed:
+        return {"status": "error", "message": parsed["error"]}
+    
+    # Run the prediction pipeline with CSV data
+    try:
+        result = await orchestrate(
+            company_id="CSV_UPLOAD",
+            as_of_date=as_of_date,
+            override_features=parsed.get("features"),
+            override_source="csv_upload"
+        )
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
