@@ -303,42 +303,6 @@ financial-advisor/
 
 ---
 
-## 🔑 API Keys & Credentials
-
-### Backend (.env)
-```env
-# LLM APIs
-GROQ_API_KEY_1=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
-GROQ_API_KEY_2=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
-GROQ_API_KEY_3=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
-GEMINI_API_KEY=AIzaSyCtSaSZOaDqOYRWJJFV1tJyh0SgKHC3rRc
-
-# Real Data APIs
-FINNHUB_API_KEY=d6m0fvhr01qu3p05kgf0d6m0fvhr01qu3p05kgfg
-FRED_API_KEY=a8618099768efe2dead3f1eb32bbd975
-NEWS_API_KEY=3edbf945ead248fda379b12df3591457
-
-# MongoDB Atlas
-MONGODB_URL=mongodb+srv://FinsightAdmin:Sani%401202@cluster0.hzxnifa.mongodb.net/finsight?retryWrites=true&w=majority&appName=Cluster0
-
-# Firebase Admin SDK
-FIREBASE_PROJECT_ID=finsight-ai-f1ede
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@finsight-ai-f1ede.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-```
-
-### Frontend (.env)
-```env
-VITE_FIREBASE_API_KEY=AIzaSyCqHQUEbhoKwqr4B2DpcFNibiXSA1XpXw4
-VITE_FIREBASE_AUTH_DOMAIN=finsight-ai-f1ede.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=finsight-ai-f1ede
-VITE_FIREBASE_STORAGE_BUCKET=finsight-ai-f1ede.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=611386156451
-VITE_FIREBASE_APP_ID=1:611386156451:web:92051365aa57af9ecb6616
-```
-
----
-
 ## 🚀 How to Run
 
 ### Backend
