@@ -1580,16 +1580,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact & Support
 
-- **GitHub Issues**: [Report bugs or request features](https://github.com/yourusername/finsight-ai/issues)
-- **Email**: your.email@example.com
-- **LinkedIn**: [Your Profile](https://linkedin.com/in/yourprofile)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/simplysandeepp/finsight-ai/issues)
+- **Email**: sandeepprajapati1202@gmail.com
+- **LinkedIn**: [Simplysandeepp](https://linkedin.com/in/simplysandeepp)
 
 ---
 
 ## 🎯 Roadmap
 
 ### Q1 2026
-- ✅ Multi-agent orchestration
+- ✅ Multi-agent orchestratison
 - ✅ Real data integration
 - ✅ Premium dashboard UI
 - ✅ PDF report generation
