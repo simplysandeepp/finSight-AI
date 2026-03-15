@@ -1,0 +1,308 @@
+MIT License
+
+Copyright (c) 2026 Sandeep Prajapati
+Project: finSight-AI — AI-Powered Financial Advisory Platform
+Repository: https://github.com/simplysandeepp/finSight-AI
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+                        DETAILED TERMS AND EXPLANATIONS
+               (Non-Binding Clarifications for Human Readability)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SECTION 1 — WHAT THIS LICENSE COVERS
+─────────────────────────────────────
+This MIT License applies to all source code, configuration files, scripts,
+documentation, assets, and associated materials that form the finSight-AI
+project, including but not limited to:
+
+  • Backend Python source code (agents, orchestrators, pipelines, routes,
+    data loaders, feature stores, evaluation modules, explainability modules,
+    audit trail systems, and database interfaces)
+
+  • Frontend source code (React/JSX components, Tailwind CSS styling,
+    Vite build configuration, Firebase integration, and all associated assets)
+
+  • Machine learning training pipelines, model configuration files, and
+    synthetic data generation utilities
+
+  • Infrastructure files including Dockerfiles, docker-compose configurations,
+    CI/CD definitions, and deployment manifests (render.yaml)
+
+  • Documentation files including README.md, PROJECT_DOCUMENTATION.md,
+    SYSTEM_ARCHITECTURE.md, STARTUP.md, and all other Markdown documents
+
+  • Test suites, notebooks, and utility scripts included in the repository
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 2 — GRANT OF RIGHTS
+─────────────────────────────────────
+By obtaining a copy of this Software, you are immediately and irrevocably
+granted the following rights at zero cost:
+
+  2.1  USE
+       You may run, execute, and use this Software for any purpose — personal,
+       academic, commercial, governmental, non-profit, or otherwise — without
+       seeking prior approval from the copyright holder.
+
+  2.2  COPY
+       You may reproduce and distribute verbatim or modified copies of the
+       Software in any medium, whether digital or physical, provided the
+       copyright notice and this license are retained.
+
+  2.3  MODIFY
+       You may alter, transform, translate, refactor, extend, or otherwise
+       create derivative works based upon the Software. There is no obligation
+       to contribute modifications back to the original project, though doing
+       so is encouraged and appreciated.
+
+  2.4  MERGE
+       You may incorporate this Software, in whole or in part, into other
+       projects or codebases, whether open-source or proprietary, provided the
+       license terms are honored in the resulting combined work.
+
+  2.5  PUBLISH
+       You may publicly release the Software or any derivative work, including
+       on hosting platforms such as GitHub, GitLab, npm, PyPI, DockerHub, or
+       any other distribution channel.
+
+  2.6  DISTRIBUTE
+       You may redistribute copies of the Software to third parties through
+       any channel — online repositories, package managers, physical media,
+       internal company networks, or otherwise.
+
+  2.7  SUBLICENSE
+       You may grant the same rights (or a subset thereof) to others under
+       the same or compatible license terms, enabling downstream users and
+       contributors to enjoy the same freedoms you have.
+
+  2.8  SELL
+       You may sell copies of the Software, integrate it into commercial
+       products, offer it as part of a paid service, or otherwise derive
+       financial benefit from it. No royalty or fee is owed to the original
+       author(s).
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 3 — CONDITIONS AND OBLIGATIONS
+─────────────────────────────────────
+Your rights under this license are subject to the following conditions:
+
+  3.1  ATTRIBUTION REQUIREMENT
+       In all copies, distributions, or substantial reproductions of the
+       Software — whether in source form, binary form, compiled executables,
+       container images, deployed applications, or documentation — you MUST
+       include:
+
+         (a) The original copyright notice:
+             "Copyright (c) 2026 Sandeep Prajapati"
+
+         (b) The full text of this MIT License, or a prominent link to the
+             canonical license file hosted in the original repository.
+
+       "Substantial portion" is interpreted broadly. If your work relies on
+       core logic, algorithms, or architecture from this Software, including
+       the copyright notice is the right and responsible thing to do.
+
+  3.2  NO MISREPRESENTATION OF ORIGIN
+       You may not claim that you are the original author of this Software or
+       misrepresent its origin in a way that is deceptive. If you build upon
+       this Software, you are encouraged (though not legally required) to
+       clearly acknowledge it as a derivative work.
+
+  3.3  NO TRADEMARK GRANT
+       This license does not grant you any rights to use the name "finSight-AI",
+       any associated logos, trade names, service marks, or other brand assets
+       of the copyright holder for promotional or endorsement purposes without
+       prior written consent.
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 4 — DISCLAIMER OF WARRANTIES
+─────────────────────────────────────
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EITHER
+EXPRESS OR IMPLIED. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE
+COPYRIGHT HOLDER EXPRESSLY DISCLAIMS ALL WARRANTIES, INCLUDING BUT NOT
+LIMITED TO:
+
+  4.1  MERCHANTABILITY
+       No warranty that the Software is fit for general commerce or meets
+       the standard of a marketable product.
+
+  4.2  FITNESS FOR A PARTICULAR PURPOSE
+       No warranty that the Software will meet your specific use case,
+       business requirements, or technical expectations.
+
+  4.3  NON-INFRINGEMENT
+       No warranty that the Software does not infringe upon the intellectual
+       property rights of any third party.
+
+  4.4  ACCURACY OF FINANCIAL DATA OR PREDICTIONS
+       finSight-AI involves financial modeling, AI predictions, and market
+       data processing. NO WARRANTY IS MADE as to the accuracy, completeness,
+       timeliness, reliability, or suitability of any financial predictions,
+       analysis outputs, or data provided by or through this Software.
+       THIS SOFTWARE IS NOT A LICENSED FINANCIAL ADVISOR. Do not make
+       investment decisions based solely on outputs from this Software.
+
+  4.5  SECURITY
+       No warranty that the Software is free from vulnerabilities, exploits,
+       or security defects. Users are responsible for auditing and securing
+       any deployment of this Software in production environments.
+
+  4.6  UNINTERRUPTED OPERATION
+       No warranty that the Software will operate without interruption,
+       error, or downtime.
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 5 — LIMITATION OF LIABILITY
+─────────────────────────────────────
+TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW:
+
+IN NO EVENT SHALL THE AUTHORS, COPYRIGHT HOLDERS, CONTRIBUTORS, MAINTAINERS,
+OR ANY PARTY WHO HAS MODIFIED OR DISTRIBUTED THE SOFTWARE BE LIABLE FOR ANY
+CLAIM, DAMAGES, OR OTHER LIABILITY — WHETHER IN AN ACTION OF CONTRACT, TORT,
+NEGLIGENCE, STRICT LIABILITY, OR OTHERWISE — ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+THIS INCLUDES, WITHOUT LIMITATION:
+
+  5.1  Direct, indirect, incidental, special, exemplary, or consequential
+       damages of any nature whatsoever.
+
+  5.2  Financial losses, data losses, loss of profits, loss of business,
+       or economic harm arising from reliance on this Software's outputs,
+       predictions, analysis, or recommendations.
+
+  5.3  Damages arising from unauthorized access to your systems, data
+       breaches, or security incidents related to use of this Software.
+
+  5.4  Third-party claims arising from your use or distribution of the
+       Software in violation of applicable laws or regulations.
+
+  5.5  Losses arising from incorrect financial predictions, erroneous
+       AI outputs, stale market data, or model inaccuracies.
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 6 — FINANCIAL & REGULATORY DISCLAIMER
+─────────────────────────────────────────────
+finSight-AI is an experimental, research-grade software project. It is
+designed for educational purposes, software engineering demonstration, and
+AI/ML research exploration. Specifically:
+
+  • This Software does NOT constitute financial, investment, tax, legal,
+    or regulatory advice of any kind.
+
+  • The predictions, scores, signals, and analysis outputs generated by
+    this Software are the product of machine learning models trained on
+    historical data, and are subject to significant uncertainty, bias,
+    and error.
+
+  • Past performance indicators used in training or analysis do not
+    guarantee future results.
+
+  • Users who deploy or consume this Software in any financial decision-
+    making context do so entirely at their own risk.
+
+  • Users are solely responsible for compliance with applicable financial
+    regulations, licensing requirements, data privacy laws (including GDPR,
+    CCPA, and others), and securities regulations in their jurisdiction.
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 7 — THIRD-PARTY COMPONENTS
+─────────────────────────────────────
+This Software integrates with and may depend upon third-party libraries,
+APIs, data providers, and services. Their use is governed by their respective
+licenses and terms of service, which are independent of this MIT License.
+
+Notable third-party dependencies may include, but are not limited to:
+
+  • Python open-source libraries (e.g., FastAPI, pandas, scikit-learn,
+    PyTorch, LangChain, etc.) — subject to their respective licenses
+  • React and associated npm packages — MIT or compatible licenses
+  • Firebase / Google Cloud services — Google Terms of Service
+  • Finnhub, Alpha Vantage, FRED, Yahoo Finance APIs — each governed
+    by their own API terms of service and data licensing agreements
+  • MongoDB — Server Side Public License (SSPL) or commercial license
+  • Docker — Apache 2.0 License
+
+The authors of finSight-AI make no warranty regarding the continued
+availability, accuracy, or stability of any third-party service.
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 8 — CONTRIBUTIONS
+─────────────────────────────────────
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in this Software by you (via pull request, patch,
+issue, or any other form) shall be licensed under the same MIT License
+as this project, without any additional terms or conditions.
+
+Contributors retain copyright over their own contributions. By submitting
+a contribution, you represent that:
+
+  (a) You have the legal right to grant the above license for your
+      contribution.
+  (b) Your contribution does not knowingly infringe upon any third party's
+      intellectual property rights.
+  (c) Your contribution does not introduce malicious code, backdoors,
+      or intentional security vulnerabilities.
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 9 — COMPLIANCE WITH APPLICABLE LAW
+─────────────────────────────────────────────
+This license is intended to be interpreted in accordance with applicable
+law. If any provision of this license is held to be unenforceable or invalid
+under applicable law, that provision shall be modified to the minimum extent
+necessary to make it enforceable, and the remainder of the license shall
+continue in full force and effect.
+
+This license shall be governed by and construed in accordance with the laws
+of the jurisdiction in which the copyright holder resides, without regard to
+conflict-of-law principles.
+
+─────────────────────────────────────────────────────────────────────────────
+
+SECTION 10 — HOW TO APPLY THIS LICENSE TO YOUR DERIVATIVE WORK
+─────────────────────────────────────────────────────────────────────────────
+If you build a project based on finSight-AI and wish to properly comply
+with and propagate this license, include the following notice in your
+project's LICENSE file or README:
+
+    ┌─────────────────────────────────────────────────────────────┐
+    │  Portions of this software are derived from finSight-AI,   │
+    │  Copyright (c) 2026 Sandeep Prajapati, licensed under the  │
+    │  MIT License. See LICENSE for full terms.                   │
+    └─────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+                            END OF LICENSE DOCUMENT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
