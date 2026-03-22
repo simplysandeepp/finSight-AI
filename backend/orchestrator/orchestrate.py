@@ -35,6 +35,7 @@ from data_sources.finnhub_loader import (
 from data_sources.news_loader import get_company_news, get_market_headlines
 
 logger = Logger.bind(component="orchestrator")
+ALLOW_SYNTHETIC_FALLBACK = os.getenv("ALLOW_SYNTHETIC_FALLBACK", "false").lower() == "true"
 
 # Peer mapping for real tickers
 PEER_MAP = {
@@ -309,8 +310,14 @@ async def orchestrate(
         except Exception as e:
             logger.warning(f"Live data fetch failed: {e}")
 
-    # 2. Fallback to feature store if live data unavailable (skip for org mode)
+    # 2. Fallback to feature store if live data unavailable (skip for org/csv mode)
     if not live_data_available and not org_mode:
+        if not ALLOW_SYNTHETIC_FALLBACK:
+            raise RuntimeError(
+                "Live market data unavailable and synthetic fallback is disabled. "
+                "Provide valid live data/API keys or set ALLOW_SYNTHETIC_FALLBACK=true."
+            )
+
         if not FEATURES_PATH.exists():
             raise FileNotFoundError("Feature store (features_v1.pkl) not found. Run feature store first.")
         
@@ -346,12 +353,9 @@ async def orchestrate(
     # 4. Fetch Peer Data for Competitor Agent
     peer_financials = []
 
-    # CSV mode: use generic peers
+    # CSV mode: do not synthesize peer rows from fake benchmarks
     if csv_mode:
-        peer_financials = [
-            {"peer_id": "Industry_Avg", "revenue": features.get("revenue", 100) * 1.05, "ebitda_margin": 0.22, "revenue_growth": 0.05},
-            {"peer_id": "Market_Leader", "revenue": features.get("revenue", 100) * 1.3, "ebitda_margin": 0.28, "revenue_growth": 0.08},
-        ]
+        peer_financials = []
     # Org mode: generate industry-representative peer placeholders
     elif org_mode:
         industry = org_industry or "General"
@@ -387,23 +391,8 @@ async def orchestrate(
                 except Exception as e:
                     logger.warning(f"Failed to fetch peer {pt}: {e}")
     
-    # Synthetic path: pick 2-3 random COMP peers from the feature store
-    if not live_data_available and not peer_financials:
-        try:
-            all_companies = full_df['company_id'].unique().tolist()
-            synthetic_peers = [c for c in all_companies if c != company_id][:3]
-            for peer_id in synthetic_peers:
-                peer_row = full_df[full_df['company_id'] == peer_id].sort_values('date').tail(1)
-                if not peer_row.empty:
-                    p = peer_row.iloc[0]
-                    peer_financials.append({
-                        "peer_id": peer_id,
-                        "revenue": float(p.get('revenue', 100)),
-                        "ebitda_margin": float(p.get('ebitda_margin', 0.2)),
-                        "revenue_growth": float(p.get('revenue_growth', 0.05))
-                    })
-        except Exception as e:
-            logger.warning(f"Synthetic peer fetch failed: {e}")
+    if not peer_financials:
+        logger.warning("No peer financials available. Competitor analysis may be degraded.")
     
     # 5. Initialize agents
     agents = {
@@ -475,6 +464,8 @@ async def orchestrate(
         else:
             agent_outputs[name] = output
             agent_latencies[name] = latency
+            if hasattr(output, "confidence") and output.confidence <= 0.5:
+                degraded_agents.append(name)
     
     if len([k for k, v in agent_outputs.items() if not isinstance(v, dict) or "error" not in v]) < 1:
         raise RuntimeError("InsufficientDataError: No agents succeeded.")
@@ -538,7 +529,7 @@ async def orchestrate(
         "status": "success" if not degraded_agents else "partial",
         "latency_ms": latency_ms,
         "result": final_output_dict,
-        "data_source": "csv_upload" if csv_mode else ("org_upload" if org_mode else ("live_finnhub" if live_data_available else "synthetic_store")),
+        "data_source": "csv_upload" if csv_mode else ("org_upload" if org_mode else "live_finnhub"),
         "explainability": {
             "confidence_breakdown": {k: v.confidence if hasattr(v, 'confidence') else v.get('confidence', 0) for k, v in agent_outputs.items()},
             "degraded": degraded_agents,

@@ -101,13 +101,13 @@ async def upload_csv(
     and run the full agent pipeline on it.
     """
     content = await file.read()
-    
-    parsed = validate_and_parse_csv(content)
-    if "error" in parsed:
-        return {"status": "error", "message": parsed["error"]}
-    
-    # Run the prediction pipeline with CSV data
+
     try:
+        parsed = validate_and_parse_csv(content)
+        if "error" in parsed:
+            raise HTTPException(status_code=400, detail=parsed["error"])
+
+        # Run the prediction pipeline with CSV data
         result = await orchestrate(
             company_id="CSV_UPLOAD",
             as_of_date=as_of_date,
@@ -115,8 +115,13 @@ async def upload_csv(
             override_source="csv_upload"
         )
         return result
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        print(f"ERROR in /upload-csv: {error_detail}")
+        raise HTTPException(status_code=500, detail=f"CSV processing failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -11,6 +11,28 @@ const SimpleDashboard = () => {
   const [date, setDate] = useState('2024-12-31');
   const [csvFile, setCsvFile] = useState(null);
   const [orgDate, setOrgDate] = useState('2026-01-01');
+  const [notifications, setNotifications] = useState([]);
+
+  const pushNotification = (type, message) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setNotifications((prev) => [...prev, { id, type, message }]);
+    window.setTimeout(() => {
+      setNotifications((prev) => prev.filter((note) => note.id !== id));
+    }, 4500);
+  };
+
+  const extractApiError = async (response) => {
+    let detail = '';
+    try {
+      const data = await response.json();
+      detail = data?.detail || data?.message || '';
+    } catch {
+      detail = '';
+    }
+    return detail
+      ? `Request failed (${response.status}): ${detail}`
+      : `Request failed with status ${response.status}`;
+  };
 
   useEffect(() => {
     const savedResult = sessionStorage.getItem('lastPrediction');
@@ -39,11 +61,24 @@ const SimpleDashboard = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company_id: ticker, as_of_date: date }),
       });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(await extractApiError(response));
+      }
       const data = await response.json();
       setResult(data);
+
+      if (data?.status === 'partial') {
+        const degraded = data?.degraded_agents?.length ? data.degraded_agents.join(', ') : 'some AI agents';
+        const msg = `Analysis completed with limited coverage (${degraded}). Check API keys for full AI output.`;
+        setError(msg);
+        pushNotification('warning', msg);
+      } else {
+        pushNotification('success', 'Analysis completed successfully.');
+      }
     } catch (err) {
-      setError(err.message);
+      const msg = err?.message || 'Unexpected error during prediction.';
+      setError(msg);
+      pushNotification('error', msg);
     } finally {
       setLoading(false);
     }
@@ -65,11 +100,24 @@ const SimpleDashboard = () => {
         method: 'POST',
         body: formData,
       });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(await extractApiError(response));
+      }
       const data = await response.json();
       setResult(data);
+
+      if (data?.status === 'partial') {
+        const degraded = data?.degraded_agents?.length ? data.degraded_agents.join(', ') : 'some AI agents';
+        const msg = `CSV analysis completed with limited coverage (${degraded}). Check API keys for full AI output.`;
+        setError(msg);
+        pushNotification('warning', msg);
+      } else {
+        pushNotification('success', 'CSV uploaded and analyzed successfully.');
+      }
     } catch (err) {
-      setError(err.message);
+      const msg = err?.message || 'Unexpected error during CSV upload.';
+      setError(msg);
+      pushNotification('error', msg);
     } finally {
       setLoading(false);
     }
@@ -389,6 +437,22 @@ const SimpleDashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-white p-6">
+      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-[340px] max-w-[90vw]">
+        {notifications.map((note) => (
+          <div
+            key={note.id}
+            className={`rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur-sm ${
+              note.type === 'error'
+                ? 'bg-red-500/15 border-red-500/40 text-red-200'
+                : note.type === 'warning'
+                ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-100'
+                : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-100'
+            }`}
+          >
+            {note.message}
+          </div>
+        ))}
+      </div>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">

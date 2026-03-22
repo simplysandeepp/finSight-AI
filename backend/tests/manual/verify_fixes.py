@@ -32,7 +32,7 @@ def main():
     print("VERIFYING CRITICAL FIXES IN CODE")
     print("="*80)
     
-    base_dir = Path(__file__).parent
+    base_dir = Path(__file__).resolve().parent.parent.parent
     
     # Fix 1: Check financial_model.py for CI fix
     fix1_checks = [

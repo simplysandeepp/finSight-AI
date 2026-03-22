@@ -19,7 +19,7 @@ import pytest
 
 # Add parent to path so we can import generator directly
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from synthetic_financial_gen.generator import (
     DATASET_VERSION,

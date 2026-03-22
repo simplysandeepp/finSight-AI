@@ -1,7 +1,7 @@
 """Test if date matching is working correctly"""
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from data_sources.finnhub_loader import get_company_financials
 

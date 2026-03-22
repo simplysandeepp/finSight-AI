@@ -152,7 +152,7 @@ Return ONLY valid JSON in this format:
             self.logger.error(f"Error in EnsemblerAgent: {e}")
             return EnsemblerOutput(
                 request_id=input_data.request_id,
-                confidence=1.0,
+                confidence=0.3,
                 final_forecast=FinalForecast(
                     revenue_p50=base_rev, 
                     ebitda_p50=base_ebitda, 
@@ -161,13 +161,13 @@ Return ONLY valid JSON in this format:
                 ),
                 recommendation=Recommendation(
                     action="monitor", 
-                    rationale="Stable growth and moderate sentiment.",
-                    simple_summary="The company is doing okay with steady growth. Nothing too exciting or worrying right now.",
-                    simple_verdict="In simple terms: A safe, steady choice for patient investors.",
-                    key_risks=["Market uncertainty"],
-                    key_strengths=["Strong revenue momentum"]
+                    rationale="LLM services were unavailable, so only model-based forecast values are shown.",
+                    simple_summary="AI narrative analysis is temporarily unavailable. Forecast numbers are shown, but qualitative insights are limited.",
+                    simple_verdict="In simple terms: Re-run after fixing API keys for a full recommendation.",
+                    key_risks=["LLM services unavailable"],
+                    key_strengths=["Quant model forecast still computed"]
                 ),
-                combined_confidence=0.85,
-                explanations=["Driven by strong revenue momentum", "Offset by macro uncertainty"],
-                human_review_required=False
+                combined_confidence=0.3,
+                explanations=["Ensembler fallback activated due to LLM provider failure"],
+                human_review_required=True
             )
