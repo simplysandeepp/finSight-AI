@@ -68,7 +68,7 @@ class LLMClient:
                     # For non-429 errors, we still try the next key or fallback
                     self.current_groq_index = (self.current_groq_index + 1) % len(self.groq_keys)
                     continue
-        
+
         # Fallback to Gemini
         if self.gemini_key:
             self.logger.info("Falling back to Gemini...")
@@ -76,7 +76,7 @@ class LLMClient:
                 return await self._call_gemini(prompt, system_prompt)
             except Exception as e:
                 self.logger.error(f"Gemini Fallback failed: {str(e)}")
-        
+
         raise LLMUnavailableError("All LLM providers (Groq/Gemini) failed or are unconfigured.")
 
     async def _call_groq(self, prompt: str, system_prompt: str, api_key: str) -> str:
@@ -103,7 +103,7 @@ class LLMClient:
             model_name=self.gemini_model,
             system_instruction=system_prompt if system_prompt else None
         )
-        
+
         # Gemini block for async usage
         response = await asyncio.to_thread(
             model.generate_content,

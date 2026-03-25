@@ -1,183 +1,121 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Building2, User, Loader2, CheckCircle, AlertCircle, Upload, FileText, Activity, Info } from 'lucide-react';
+import { Activity, AlertCircle, Database } from 'lucide-react';
+import PredictionForm from '../components/PredictionForm.jsx';
 import AgentProgressTracker from '../components/AgentProgressTracker.jsx';
+import ForecastCard from '../components/ForecastCard.jsx';
+import ConfidenceBreakdown from '../components/ConfidenceBreakdown.jsx';
+import ShapExplainer from '../components/ShapExplainer.jsx';
+import RecommendationBadge from '../components/RecommendationBadge.jsx';
+import TelemetryPanel from '../components/TelemetryPanel.jsx';
+import ExecutiveReport from '../components/ExecutiveReport.jsx';
+import AuditModal from '../components/AuditModal.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import LoadingSkeleton from '../components/LoadingSkeleton.jsx';
+
+const API = import.meta.env.VITE_API_URL;
 
 const SimpleDashboard = () => {
   const [role, setRole] = useState('investor');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [ticker, setTicker] = useState('AAPL');
   const [date, setDate] = useState('2024-12-31');
   const [csvFile, setCsvFile] = useState(null);
   const [orgDate, setOrgDate] = useState('2026-01-01');
-  const [notifications, setNotifications] = useState([]);
-  const [backtestStats, setBacktestStats] = useState(null);
-  const [modelInfo, setModelInfo] = useState(null);
-  const [showModelInfo, setShowModelInfo] = useState(false);
   const [agentProgress, setAgentProgress] = useState([]);
+  const [backtestStats, setBacktestStats] = useState(null);
+  const [history, setHistory] = useState([]);
 
-  const pushNotification = (type, message) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setNotifications((prev) => [...prev, { id, type, message }]);
-    window.setTimeout(() => {
-      setNotifications((prev) => prev.filter((note) => note.id !== id));
-    }, 4500);
-  };
-
-  const extractApiError = async (response) => {
-    let detail = '';
-    try {
-      const data = await response.json();
-      detail = data?.detail || data?.message || '';
-    } catch {
-      detail = '';
-    }
-    return detail
-      ? `Request failed (${response.status}): ${detail}`
-      : `Request failed with status ${response.status}`;
-  };
-
-  const getWsUrl = () => {
-    const base = (import.meta.env.VITE_API_URL || '').trim();
-    if (!base) return '';
-    return `${base.replace(/^http/i, 'ws')}/ws/predict`;
-  };
+  const confidenceBreakdown = result?.explainability?.confidence_breakdown || null;
 
   useEffect(() => {
-    const savedResult = sessionStorage.getItem('lastPrediction');
-    if (savedResult) {
+    const loadBacktest = async () => {
       try {
-        setResult(JSON.parse(savedResult));
-      } catch (e) {
-        console.error('Failed to parse saved result:', e);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (result) {
-      sessionStorage.setItem('lastPrediction', JSON.stringify(result));
-    }
-  }, [result]);
-
-  // Fetch backtest stats for Model Accuracy badge
-  useEffect(() => {
-    const fetchBacktestStats = async () => {
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/backtest-results`);
-        if (response.ok) {
-          const data = await response.json();
-          setBacktestStats(data.overall_summary);
+        const res = await fetch(`${API}/api/backtest-results`);
+        if (res.ok) {
+          const body = await res.json();
+          setBacktestStats(body.overall_summary || null);
         }
-      } catch (err) {
-        // Silently fail - backtest stats are optional
-        console.log('Backtest stats not available');
+      } catch {
+        // optional widget
       }
     };
-    fetchBacktestStats();
+    loadBacktest();
   }, []);
 
-  // Fetch model info for transparency panel
   useEffect(() => {
-    const fetchModelInfo = async () => {
+    const loadHistory = async () => {
+      if (!ticker) return;
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/model-info`);
-        if (response.ok) {
-          const data = await response.json();
-          setModelInfo(data);
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch(`${API}/api/prediction-history?ticker=${encodeURIComponent(ticker)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const body = await res.json();
+          setHistory(body.history || []);
         }
-      } catch (err) {
-        console.log('Model info not available');
+      } catch {
+        setHistory([]);
       }
     };
-    fetchModelInfo();
+    loadHistory();
+  }, [ticker, result]);
+
+  const wsUrl = useMemo(() => {
+    if (!API) return '';
+    return `${API.replace(/^http/i, 'ws')}/ws/predict`;
   }, []);
+
+  const runWebsocketPrediction = async (payload) => {
+    return new Promise((resolve, reject) => {
+      const socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => socket.send(JSON.stringify(payload));
+
+      socket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+
+        if (msg.type === 'progress') {
+          setAgentProgress((prev) => {
+            const next = [...prev];
+            const idx = next.findIndex((s) => s.step === msg.step);
+            if (idx === -1) next.push(msg);
+            else next[idx] = { ...next[idx], ...msg };
+            return next;
+          });
+          return;
+        }
+
+        if (msg.type === 'final') {
+          resolve(msg.result);
+          socket.close();
+          return;
+        }
+
+        if (msg.type === 'error') {
+          reject(new Error(msg.message || 'Prediction failed'));
+          socket.close();
+        }
+      };
+
+      socket.onerror = () => reject(new Error('WebSocket connection failed'));
+    });
+  };
 
   const handleInvestorSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    setError(null);
     setAgentProgress([]);
     try {
-      const wsUrl = getWsUrl();
-      if (!wsUrl) {
-        throw new Error('VITE_API_URL is not configured.');
-      }
-
-      const data = await new Promise((resolve, reject) => {
-        const socket = new WebSocket(wsUrl);
-
-        socket.onopen = () => {
-          socket.send(JSON.stringify({ company_id: ticker, as_of_date: date }));
-        };
-
-        socket.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data);
-
-            if (payload.type === 'progress') {
-              setAgentProgress((prev) => {
-                const next = [...prev];
-                const index = next.findIndex((item) => item.step === payload.step);
-                const step = {
-                  step: payload.step,
-                  status: payload.status,
-                  message: payload.message,
-                  latency_ms: payload.latency_ms,
-                };
-
-                if (index === -1) {
-                  next.push(step);
-                } else {
-                  next[index] = { ...next[index], ...step };
-                }
-                return next;
-              });
-              return;
-            }
-
-            if (payload.type === 'final') {
-              resolve(payload.result);
-              socket.close();
-              return;
-            }
-
-            if (payload.type === 'error') {
-              reject(new Error(payload.message || 'WebSocket prediction failed'));
-              socket.close();
-            }
-          } catch (parseErr) {
-            reject(new Error('Invalid WebSocket response payload'));
-            socket.close();
-          }
-        };
-
-        socket.onerror = () => {
-          reject(new Error('WebSocket connection failed'));
-        };
-
-        socket.onclose = () => {
-          // noop: completion is handled via final/error events.
-        };
-      });
-
+      const data = await runWebsocketPrediction({ company_id: ticker, as_of_date: date });
       setResult(data);
-
-      if (data?.status === 'partial') {
-        const degraded = data?.degraded_agents?.length ? data.degraded_agents.join(', ') : 'some AI agents';
-        const msg = `Analysis completed with limited coverage (${degraded}). Check API keys for full AI output.`;
-        setError(msg);
-        pushNotification('warning', msg);
-      } else {
-        pushNotification('success', 'Analysis completed successfully.');
-      }
     } catch (err) {
-      const msg = err?.message || 'Unexpected error during prediction.';
-      setError(msg);
-      pushNotification('error', msg);
+      setError(err?.message || 'Prediction failed');
     } finally {
       setLoading(false);
     }
@@ -190,1038 +128,167 @@ const SimpleDashboard = () => {
       return;
     }
     setLoading(true);
-    setError(null);
+    setError('');
     try {
       const formData = new FormData();
       formData.append('file', csvFile);
       formData.append('as_of_date', orgDate);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/upload-csv`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error(await extractApiError(response));
-      }
-      const data = await response.json();
-      setResult(data);
-
-      if (data?.status === 'partial') {
-        const degraded = data?.degraded_agents?.length ? data.degraded_agents.join(', ') : 'some AI agents';
-        const msg = `CSV analysis completed with limited coverage (${degraded}). Check API keys for full AI output.`;
-        setError(msg);
-        pushNotification('warning', msg);
-      } else {
-        pushNotification('success', 'CSV uploaded and analyzed successfully.');
-      }
+      const response = await fetch(`${API}/upload-csv`, { method: 'POST', body: formData });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.detail || `Failed (${response.status})`);
+      setResult(body);
     } catch (err) {
-      const msg = err?.message || 'Unexpected error during CSV upload.';
-      setError(msg);
-      pushNotification('error', msg);
+      setError(err?.message || 'CSV analysis failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const getActionColor = (action) => {
-    const colors = {
-      buy: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-      sell: 'text-red-400 bg-red-500/10 border-red-500/20',
-      hold: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
-      monitor: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-    };
-    return colors[action?.toLowerCase()] || colors.monitor;
-  };
-
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (!result) return;
-
-    // Create a styled HTML document for PDF
-    const reportHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>FinSight AI - Executive Report</title>
-        <style>
-          @page { margin: 0; }
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #ffffff;
-            color: #000000;
-            padding: 40px;
-          }
-          .header {
-            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
-            padding: 40px 40px;
-            margin: -40px -40px 40px -40px;
-            border-bottom: 4px solid #059669;
-          }
-          .logo {
-            font-size: 36px;
-            font-weight: 900;
-            color: #000000;
-            margin-bottom: 10px;
-            text-shadow: 0 2px 8px rgba(255,255,255,0.3);
-          }
-          .confidential {
-            font-size: 14px;
-            color: #000000;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            font-weight: 700;
-          }
-          .section {
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 24px;
-          }
-          .section-title {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            color: #10b981;
-          }
-          .company-header {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 24px;
-          }
-          .company-name {
-            font-size: 28px;
-            font-weight: 900;
-            color: #000000;
-          }
-          .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            background: #dbeafe;
-            border: 1px solid #3b82f6;
-            border-radius: 6px;
-            font-size: 12px;
-            color: #1e40af;
-            font-weight: 600;
-          }
-          .action-box {
-            background: #ecfdf5;
-            border: 2px solid #10b981;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-          }
-          .action-label {
-            font-size: 24px;
-            font-weight: bold;
-            text-transform: uppercase;
-            color: #059669;
-            margin-bottom: 12px;
-          }
-          .grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            margin-top: 16px;
-          }
-          .metric {
-            background: #ffffff;
-            padding: 16px;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-          }
-          .metric-label {
-            font-size: 12px;
-            color: #6b7280;
-            margin-bottom: 4px;
-          }
-          .metric-value {
-            font-size: 18px;
-            font-weight: 600;
-            color: #059669;
-          }
-          .forecast-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid #e5e7eb;
-          }
-          .forecast-label { color: #374151; font-weight: 500; }
-          .forecast-value { font-weight: 700; font-family: monospace; }
-          .bear { color: #dc2626; }
-          .base { color: #059669; font-size: 18px; }
-          .bull { color: #2563eb; }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 16px;
-          }
-          th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
-          }
-          th {
-            color: #374151;
-            font-size: 12px;
-            text-transform: uppercase;
-            font-weight: 700;
-            background: #f3f4f6;
-          }
-          td {
-            color: #000000;
-            font-weight: 500;
-          }
-          .footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 2px solid #e5e7eb;
-            font-size: 11px;
-            color: #6b7280;
-            text-align: center;
-          }
-          .trace-id {
-            font-family: monospace;
-            color: #059669;
-            font-weight: 600;
-          }
-          ul {
-            list-style: none;
-            padding: 0;
-          }
-          li {
-            padding: 8px 0;
-            padding-left: 20px;
-            position: relative;
-            color: #1f2937;
-            line-height: 1.6;
-          }
-          li:before {
-            content: "•";
-            color: #10b981;
-            position: absolute;
-            left: 0;
-            font-weight: bold;
-          }
-          p {
-            color: #1f2937;
-            line-height: 1.6;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="logo">FinSight AI</div>
-          <div class="confidential">Confidential - Proprietary AI Analysis</div>
-        </div>
-
-        <div class="company-header">
-          <div>
-            <div class="company-name">${result.company_profile?.name || 'Company Analysis'}</div>
-            <span class="badge">${result.company_profile?.sector || 'N/A'}</span>
-            <span style="margin-left: 12px; color: #374151; font-weight: 500;">Market Cap: $${(result.company_profile?.market_cap || 0).toLocaleString()}M</span>
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-title">Executive Summary</div>
-          <div class="action-box">
-            <div class="action-label">${result.result?.recommendation?.action || 'MONITOR'}</div>
-            <p style="color: #1f2937; line-height: 1.6; font-weight: 500;">${result.result?.recommendation?.simple_verdict || 'Analysis complete'}</p>
-          </div>
-          <p style="color: #374151; line-height: 1.6; font-weight: 500;">${result.result?.recommendation?.simple_summary || ''}</p>
-          <div style="margin-top: 20px;">
-            <strong style="color: #1f2937;">AI Confidence:</strong>
-            <span style="color: #059669; font-size: 24px; font-weight: bold; margin-left: 12px;">
-              ${Math.round((result.result?.combined_confidence || 0) * 100)}%
-            </span>
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-title">Financial Forecast</div>
-          <div style="margin-bottom: 24px;">
-            <h4 style="color: #374151; margin-bottom: 12px; font-weight: 600;">Revenue Forecast (Millions USD)</h4>
-            <div class="forecast-row">
-              <span class="forecast-label bear">Bear Case (P05):</span>
-              <span class="forecast-value bear">$${(result.result?.final_forecast?.revenue_ci?.[0] || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M</span>
-            </div>
-            <div class="forecast-row">
-              <span class="forecast-label base">Base Case (P50):</span>
-              <span class="forecast-value base">$${(result.result?.final_forecast?.revenue_p50 || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M</span>
-            </div>
-            <div class="forecast-row">
-              <span class="forecast-label bull">Bull Case (P95):</span>
-              <span class="forecast-value bull">$${(result.result?.final_forecast?.revenue_ci?.[1] || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M</span>
-            </div>
-          </div>
-          <div>
-            <h4 style="color: #374151; margin-bottom: 12px; font-weight: 600;">EBITDA Forecast (Millions USD)</h4>
-            <div class="forecast-row">
-              <span class="forecast-label bear">Bear Case (P05):</span>
-              <span class="forecast-value bear">$${(result.result?.final_forecast?.ebitda_ci?.[0] || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M</span>
-            </div>
-            <div class="forecast-row">
-              <span class="forecast-label base">Base Case (P50):</span>
-              <span class="forecast-value base">$${(result.result?.final_forecast?.ebitda_p50 || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M</span>
-            </div>
-            <div class="forecast-row">
-              <span class="forecast-label bull">Bull Case (P95):</span>
-              <span class="forecast-value bull">$${(result.result?.final_forecast?.ebitda_ci?.[1] || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="section" style="page-break-before: always; margin-top: 60px;">
-          <div class="section-title">Multi-Agent AI Confidence Breakdown</div>
-          <table>
-            <thead>
-              <tr>
-                <th>AI Agent</th>
-                <th>Confidence Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>NLP Transcript Agent</td>
-                <td>${Math.round((result.explainability?.confidence_breakdown?.transcript_nlp || 0) * 100)}%</td>
-              </tr>
-              <tr>
-                <td>Financial Math Model</td>
-                <td>${Math.round((result.explainability?.confidence_breakdown?.financial_model || 0) * 100)}%</td>
-              </tr>
-              <tr>
-                <td>News & Macro Agent</td>
-                <td>${Math.round((result.explainability?.confidence_breakdown?.news_macro || 0) * 100)}%</td>
-              </tr>
-              <tr>
-                <td>Competitor Agent</td>
-                <td>${Math.round((result.explainability?.confidence_breakdown?.competitor || 0) * 100)}%</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        ${result.explainability?.shap_values?.length > 0 ? `
-        <div class="section">
-          <div class="section-title">Top Factors Influencing AI Prediction</div>
-          <ul>
-            ${result.explainability.shap_values.slice(0, 5).map(item => `
-              <li>${item.feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: <span style="color: ${item.shap >= 0 ? '#10b981' : '#ef4444'}; font-weight: 600;">${item.shap >= 0 ? '+' : ''}${item.shap.toFixed(1)}</span></li>
-            `).join('')}
-          </ul>
-        </div>
-        ` : ''}
-
-        <div class="footer">
-          <p>Generated by FinSight AI Multi-Agent Orchestrator</p>
-          <p style="margin-top: 8px;">Digital Signature: <span class="trace-id">${result.trace_id}</span></p>
-          <p style="margin-top: 4px;">Timestamp: ${new Date().toLocaleString()}</p>
-          <p style="margin-top: 8px;">Data Source: ${result.data_source} | Total Processing Time: ${(result.latency_ms / 1000).toFixed(1)}s</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // Open print dialog with the styled content
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(reportHTML);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API}/api/generate-report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ prediction_result: result }),
+      });
+      if (!response.ok) {
+        throw new Error(`Report generation failed (${response.status})`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `FinSight_Executive_Report_${result.request_id || 'report'}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err?.message || 'Report download failed');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b] text-white p-6">
-      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-[340px] max-w-[90vw]">
-        {notifications.map((note) => (
-          <div
-            key={note.id}
-            className={`rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur-sm ${
-              note.type === 'error'
-                ? 'bg-red-500/15 border-red-500/40 text-red-200'
-                : note.type === 'warning'
-                ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-100'
-                : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-100'
-            }`}
-          >
-            {note.message}
+    <div className="min-h-screen text-zinc-100">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Financial Analysis Dashboard</h1>
+            <p className="text-zinc-400 mt-1">Multi-agent forecasting with explainability and auditability</p>
           </div>
-        ))}
-      </div>
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-4">FinSight AI - Financial Analysis</h1>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex gap-4">
-              <button
-                onClick={() => setRole('investor')}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg border transition-all ${
-                  role === 'investor'
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                    : 'bg-white/[0.02] text-zinc-400 border-white/[0.06] hover:bg-white/[0.04]'
-                }`}
-              >
-                <User className="w-5 h-5" />
-                <span className="font-medium">Investor</span>
-              </button>
-              <button
-                onClick={() => setRole('organization')}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg border transition-all ${
-                  role === 'organization'
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                    : 'bg-white/[0.02] text-zinc-400 border-white/[0.06] hover:bg-white/[0.04]'
-                }`}
-              >
-                <Building2 className="w-5 h-5" />
-                <span className="font-medium">Organization</span>
-              </button>
-            </div>
-            
-            {result && (
-              <button
-                onClick={() => {
-                  setResult(null);
-                  setError(null);
-                  sessionStorage.removeItem('lastPrediction');
-                }}
-                className="flex items-center gap-2 px-6 py-3 rounded-lg border bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20 transition-all"
-              >
-                <span className="font-medium">Clear Logs</span>
-              </button>
-            )}
-          </div>
+          {backtestStats && (
+            <Link
+              to="/backtest"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm"
+            >
+              <Activity className="w-4 h-4" />
+              MAPE {backtestStats.revenue?.avg_mape?.toFixed(1)}% | Coverage {(backtestStats.revenue?.pi_coverage * 100)?.toFixed(0)}%
+            </Link>
+          )}
         </div>
 
-        {/* Two-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {/* LEFT COLUMN */}
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            {/* Box 1: Input Form */}
-            <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
-              <h2 className="text-xl font-semibold mb-4">
-                {role === 'investor' ? 'Analyze Public Company' : 'Upload Your Data'}
-              </h2>
-              {role === 'investor' ? (
-                <form onSubmit={handleInvestorSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-2">Company Ticker</label>
-                    <input
-                      type="text"
-                      value={ticker}
-                      onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                      placeholder="AAPL, MSFT, GOOGL..."
-                      className="w-full px-4 py-3 bg-[#0a0a0b] border border-white/[0.06] rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500/50"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-2">Analysis Date</label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="w-full px-4 py-3 bg-[#0a0a0b] border border-white/[0.06] rounded-lg text-white focus:outline-none focus:border-emerald-500/50"
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/50 text-white rounded-lg font-medium transition-colors"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <TrendingUp className="w-5 h-5" />
-                        Analyze Company
-                      </>
-                    )}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleOrgSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-2">Upload CSV File</label>
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={(e) => setCsvFile(e.target.files[0])}
-                      className="w-full px-4 py-3 bg-[#0a0a0b] border border-white/[0.06] rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20 file:cursor-pointer"
-                      required
-                    />
-                    {csvFile && <p className="text-sm text-emerald-400 mt-2">Selected: {csvFile.name}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-2">Analysis Date</label>
-                    <input
-                      type="date"
-                      value={orgDate}
-                      onChange={(e) => setOrgDate(e.target.value)}
-                      className="w-full px-4 py-3 bg-[#0a0a0b] border border-white/[0.06] rounded-lg text-white focus:outline-none focus:border-emerald-500/50"
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/50 text-white rounded-lg font-medium transition-colors"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-5 h-5" />
-                        Analyze Data
-                      </>
-                    )}
-                  </button>
-                </form>
-              )}
-              {error && (
-                <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-red-400 font-medium">Error</p>
-                    <p className="text-red-300 text-sm mt-1">{error}</p>
-                  </div>
-                </div>
-              )}
-            </div>
+        {error && (
+          <div className="border border-red-500/40 bg-red-500/15 rounded-lg p-3 text-sm text-red-200 inline-flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" /> {error}
+          </div>
+        )}
 
-            {/* Box 2: Company Fundamentals */}
-            {result?.company_profile && (
-              <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
-                <h3 className="text-lg font-semibold mb-4">🏢 Company Fundamentals</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-zinc-500 mb-1">Revenue Growth</div>
-                    <div className={`text-lg font-semibold ${(result.company_profile.revenue_growth || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {result.company_profile.revenue_growth?.toFixed(2) || 'N/A'}%
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-500 mb-1">Profit Margin</div>
-                    <div className="text-lg font-semibold text-white">
-                      {result.company_profile.profit_margin || 'N/A'}%
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-500 mb-1">Exchange</div>
-                    <div className="text-sm font-medium text-zinc-300">
-                      {result.company_profile.exchange || 'N/A'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-500 mb-1">HQ Location</div>
-                    <div className="text-sm font-medium text-zinc-300">
-                      {result.company_profile.country || 'N/A'}
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="space-y-4">
+            <PredictionForm
+              role={role}
+              setRole={setRole}
+              loading={loading}
+              ticker={ticker}
+              setTicker={setTicker}
+              date={date}
+              setDate={setDate}
+              csvFile={csvFile}
+              setCsvFile={setCsvFile}
+              orgDate={orgDate}
+              setOrgDate={setOrgDate}
+              onInvestorSubmit={handleInvestorSubmit}
+              onOrgSubmit={handleOrgSubmit}
+            />
+
+            <TelemetryPanel result={result} />
+
+            {result && (
+              <button
+                onClick={() => setShowAuditModal(true)}
+                className="w-full px-4 py-3 rounded-lg bg-[#121520] border border-white/10 hover:border-cyan-500/50 text-left"
+              >
+                <p className="text-sm font-medium">Open Audit JSON</p>
+                <p className="text-xs text-zinc-500 mt-1">View raw pipeline payload and trace</p>
+              </button>
             )}
 
-            {/* Box 3: Top AI Prediction Drivers */}
-            {result?.explainability?.shap_values && result.explainability.shap_values.length > 0 && (
-              <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
-                <h3 className="text-lg font-semibold mb-4">⚖️ Top Factors Influencing AI</h3>
-                <div className="space-y-3">
-                  {result.explainability.shap_values.slice(0, 5).map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="text-sm text-zinc-300 mb-1">
-                          {item.feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        </div>
-                        <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full ${item.shap >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
-                            style={{ width: `${Math.min(Math.abs(item.shap) / Math.max(...result.explainability.shap_values.map(s => Math.abs(s.shap))) * 100, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className={`ml-3 text-sm font-mono font-semibold ${item.shap >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {item.shap >= 0 ? '+' : ''}{item.shap.toFixed(1)}
-                      </div>
+            <div className="bg-[#121520] border border-white/10 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Database className="w-4 h-4 text-cyan-300" />
+                <h3 className="text-sm font-semibold">Prediction History ({ticker})</h3>
+              </div>
+              {!history.length ? (
+                <p className="text-xs text-zinc-500">No history yet for this ticker.</p>
+              ) : (
+                <div className="space-y-2 max-h-52 overflow-auto">
+                  {history.slice(0, 8).map((item) => (
+                    <div key={item.id} className="text-xs border border-white/10 rounded-md p-2">
+                      <div className="text-zinc-400">{item.created_at}</div>
+                      <div className="text-zinc-200">Revenue P50: ${Number(item.revenue_p50 || 0).toFixed(2)}M</div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Box 4: System Telemetry */}
-            {result && (
-              <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
-                <h3 className="text-lg font-semibold mb-4">⏱️ System Execution Trace</h3>
-                <div className="space-y-3 font-mono text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-500">Data Pipeline:</span>
-                    <span className="text-emerald-400 font-semibold">{result.data_source || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-500">Total API Latency:</span>
-                    <span className="text-white font-semibold">{(result.latency_ms / 1000).toFixed(1)}s</span>
-                  </div>
-                  {result.agent_latencies && (
-                    <>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-zinc-600">├─ NLP Processing:</span>
-                        <span className="text-zinc-400">{result.agent_latencies.transcript_nlp}ms</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-zinc-600">├─ Quant Model:</span>
-                        <span className="text-zinc-400">{result.agent_latencies.financial_model}ms</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-zinc-600">├─ News & Macro:</span>
-                        <span className="text-zinc-400">{result.agent_latencies.news_macro}ms</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-zinc-600">└─ Competitor:</span>
-                        <span className="text-zinc-400">{result.agent_latencies.competitor}ms</span>
-                      </div>
-                    </>
-                  )}
-                  <div className="pt-2 border-t border-white/[0.06]">
-                    <div className="text-xs text-zinc-600">System Trace ID:</div>
-                    <div className="text-xs text-zinc-500 mt-1 break-all">{result.trace_id}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Box 5: Audit Trail */}
-            {result && (
-              <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
-                <h3 className="text-lg font-semibold mb-3">🔒 Audit Trail</h3>
-                <button
-                  onClick={() => setShowAuditModal(true)}
-                  className="w-full px-4 py-3 bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.06] hover:border-white/[0.12] rounded-lg text-center text-zinc-300 hover:text-white text-sm font-medium transition-all"
-                >
-                  Generate System Audit PDF →
-                </button>
-              </div>
-            )}
-
-            {/* Box 6: Model Transparency */}
-            {modelInfo && (
-              <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">🔬 Model Transparency</h3>
-                  <button
-                    onClick={() => setShowModelInfo(!showModelInfo)}
-                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                  >
-                    {showModelInfo ? 'Hide Details' : 'Show Details'}
-                  </button>
-                </div>
-
-                {/* Summary Stats */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-white/[0.02] rounded-lg p-3">
-                    <div className="text-xs text-zinc-500 mb-1">Training Samples</div>
-                    <div className="text-lg font-semibold text-white">{modelInfo.training_config?.total_training_samples || 'N/A'}</div>
-                  </div>
-                  <div className="bg-white/[0.02] rounded-lg p-3">
-                    <div className="text-xs text-zinc-500 mb-1">Features Used</div>
-                    <div className="text-lg font-semibold text-white">{modelInfo.features?.count || 'N/A'}</div>
-                  </div>
-                </div>
-
-                {/* Data Source Badge */}
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`px-2 py-1 rounded text-xs ${modelInfo.data_source?.includes('Real') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                    {modelInfo.data_source?.includes('Real') ? '✓ Real Data' : '⚠ Synthetic'}
-                  </div>
-                  <div className="text-xs text-zinc-500">
-                    {modelInfo.training_config?.train_window}
-                  </div>
-                </div>
-
-                {/* Expanded Details */}
-                {showModelInfo && (
-                  <div className="space-y-3 pt-3 border-t border-white/[0.06]">
-                    {/* Accuracy Metrics with Tooltips */}
-                    {modelInfo.accuracy_metrics?.mape_validation && (
-                      <div className="flex justify-between items-center group relative">
-                        <span className="text-sm text-zinc-400 flex items-center gap-1">
-                          MAPE Score
-                          <span className="w-4 h-4 rounded-full bg-zinc-800 text-[10px] flex items-center justify-center text-zinc-500 cursor-help">?</span>
-                          <span className="absolute left-0 bottom-full mb-2 px-2 py-1 bg-zinc-900 border border-white/10 rounded text-xs text-zinc-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                            Mean Absolute Percentage Error - lower is better
-                          </span>
-                        </span>
-                        <span className="text-sm text-white font-medium">{modelInfo.accuracy_metrics.mape_validation.toFixed(2)}%</span>
-                      </div>
-                    )}
-
-                    {modelInfo.accuracy_metrics?.pi_coverage && (
-                      <div className="flex justify-between items-center group relative">
-                        <span className="text-sm text-zinc-400 flex items-center gap-1">
-                          PI Coverage
-                          <span className="w-4 h-4 rounded-full bg-zinc-800 text-[10px] flex items-center justify-center text-zinc-500 cursor-help">?</span>
-                          <span className="absolute left-0 bottom-full mb-2 px-2 py-1 bg-zinc-900 border border-white/10 rounded text-xs text-zinc-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                            % of actual values within prediction interval
-                          </span>
-                        </span>
-                        <span className="text-sm text-white font-medium">{(modelInfo.accuracy_metrics.pi_coverage * 100).toFixed(1)}%</span>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-zinc-400">Model Version</span>
-                      <span className="text-sm text-zinc-300 font-mono">{modelInfo.model_version}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-zinc-400">Last Trained</span>
-                      <span className="text-sm text-zinc-300">{modelInfo.last_retrained || 'N/A'}</span>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-zinc-400">Quantiles</span>
-                      <span className="text-sm text-zinc-300">{modelInfo.quantiles?.join(', ')}</span>
-                    </div>
-
-                    {/* Feature List (Collapsible) */}
-                    <details className="mt-2">
-                      <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400">View all {modelInfo.features?.count} features</summary>
-                      <div className="mt-2 text-xs text-zinc-600 font-mono bg-black/20 p-2 rounded max-h-32 overflow-y-auto">
-                        {modelInfo.features?.list?.map((f, i) => (
-                          <div key={i}>{f}</div>
-                        ))}
-                      </div>
-                    </details>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
-          {/* RIGHT COLUMN - Analysis Result */}
-          <div className="lg:col-span-2">
-            <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xl font-semibold">Analysis Result</h2>
-                  {/* Model Accuracy Badge */}
-                  {backtestStats && (
-                    <Link
-                      to="/backtest"
-                      className="group relative flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-full text-xs text-emerald-400 transition-all"
-                    >
-                      <Activity className="w-3 h-3" />
-                      <span>MAPE {backtestStats.revenue?.avg_mape?.toFixed(1)}%</span>
-                      <span className="text-emerald-500/50">|</span>
-                      <span>Coverage {(backtestStats.revenue?.pi_coverage * 100)?.toFixed(0)}%</span>
-                      {/* Tooltip */}
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 border border-white/10 rounded-lg text-xs text-zinc-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                        <div className="flex items-center gap-1.5">
-                          <Info className="w-3 h-3 text-emerald-400" />
-                          <span>Verified against {backtestStats.total_quarters} quarters of real market data</span>
-                        </div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-zinc-900"></div>
-                      </div>
-                    </Link>
-                  )}
-                </div>
-                {result && !loading && (
-                  <button
-                    onClick={handleDownloadReport}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-600 hover:to-blue-600 text-white rounded-lg font-medium transition-all shadow-lg shadow-emerald-500/20"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>Download Executive Report</span>
-                  </button>
-                )}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="bg-[#121520] border border-white/10 rounded-2xl p-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">Analysis Result</h2>
+                <p className="text-sm text-zinc-500">Live multi-agent orchestration output</p>
               </div>
-
-              {!result && !loading && (
-                <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
-                  <TrendingUp className="w-16 h-16 mb-4 opacity-20" />
-                  <p>Submit a request to see results</p>
+              {result && (
+                <div className="flex items-center gap-3">
+                  <RecommendationBadge action={result.result?.recommendation?.action} />
+                  <ExecutiveReport onDownload={handleDownloadReport} disabled={!result} />
                 </div>
               )}
+            </div>
 
-              {loading && (
-                <div className="flex flex-col items-center justify-center h-64">
-                  <p className="text-zinc-300 mb-4">Running AI analysis with live agent timeline...</p>
+            {loading && (
+              <div className="space-y-4">
+                <div className="bg-[#121520] border border-white/10 rounded-2xl p-5">
+                  <p className="text-sm text-zinc-400 mb-3">Agent Progress</p>
                   <AgentProgressTracker steps={agentProgress} />
                 </div>
-              )}
+                <LoadingSkeleton />
+              </div>
+            )}
 
-              {result && !loading && (
-                <div className="space-y-6">
-                  {/* Company Header */}
-                  {result.company_profile && (
-                    <div className="flex items-center gap-4 p-4 bg-[#0a0a0b] rounded-lg border border-white/[0.06]">
-                      {result.company_profile.logo && (
-                        <img 
-                          src={result.company_profile.logo} 
-                          alt={result.company_profile.name}
-                          className="w-12 h-12 rounded-lg object-contain bg-white/5 p-2"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-white">{result.company_profile.name}</h3>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-xs rounded border border-blue-500/20">
-                            {result.company_profile.sector}
-                          </span>
-                          <span className="text-zinc-400 text-sm">
-                            Market Cap: ${(result.company_profile.market_cap || 0).toLocaleString()}M
-                          </span>
-                          {result.company_profile.pe_ratio && (
-                            <span className="text-zinc-400 text-sm">
-                              P/E: {result.company_profile.pe_ratio.toFixed(2)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+            {!loading && !result && (
+              <EmptyState
+                title="Enter a ticker symbol to get started"
+                subtitle="You will see forecast fan charts, confidence radar, and explainability factors."
+              />
+            )}
 
-                  {/* AI Executive Summary */}
-                  <div className="p-5 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-6 h-6 text-emerald-400 flex-shrink-0 mt-1" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <h3 className="text-sm font-medium text-zinc-400">Action Required:</h3>
-                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg border font-bold text-sm ${getActionColor(result.result?.recommendation?.action)}`}>
-                            <span className="uppercase tracking-wider">
-                              {result.result?.recommendation?.action || 'MONITOR'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="space-y-3">
-                          <div>
-                            <h4 className="text-xs font-medium text-zinc-500 mb-1">The Bottom Line:</h4>
-                            <p className="text-white font-medium leading-relaxed">
-                              {result.result?.recommendation?.simple_verdict || 'Analysis complete'}
-                            </p>
-                          </div>
-                          {result.result?.recommendation?.simple_summary && (
-                            <div>
-                              <h4 className="text-xs font-medium text-zinc-500 mb-1">Detailed Summary:</h4>
-                              <p className="text-zinc-300 text-sm leading-relaxed">
-                                {result.result.recommendation.simple_summary}
-                              </p>
-                            </div>
-                          )}
-                          <div>
-                            <h4 className="text-xs font-medium text-zinc-500 mb-2">Total AI Confidence:</h4>
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-emerald-500 transition-all duration-500"
-                                  style={{ width: `${(result.result?.combined_confidence || 0) * 100}%` }}
-                                />
-                              </div>
-                              <span className="text-white font-bold text-lg">
-                                {Math.round((result.result?.combined_confidence || 0) * 100)}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bull vs Bear Case */}
-                  <div className="p-5 bg-[#0a0a0b] rounded-lg border border-white/[0.06]">
-                    <h3 className="text-lg font-semibold text-white mb-4">📊 Bull vs. Bear Case</h3>
-                    <div className="mb-6">
-                      <h4 className="text-sm font-medium text-zinc-400 mb-3">Revenue Forecast Range</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-red-400">Bear Case (P05):</span>
-                          <span className="text-red-400 font-mono">
-                            ${(result.result?.final_forecast?.revenue_ci?.[0] || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-emerald-400 font-semibold">Base Case (P50):</span>
-                          <span className="text-emerald-400 font-bold text-lg font-mono">
-                            ${(result.result?.final_forecast?.revenue_p50 || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-blue-400">Bull Case (P95):</span>
-                          <span className="text-blue-400 font-mono">
-                            ${(result.result?.final_forecast?.revenue_ci?.[1] || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-3 h-2 bg-white/[0.06] rounded-full overflow-hidden relative">
-                        <div className="absolute inset-0 bg-gradient-to-r from-red-500/30 via-emerald-500/50 to-blue-500/30" />
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-zinc-400 mb-3">EBITDA Forecast Range</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-red-400">Bear Case (P05):</span>
-                          <span className="text-red-400 font-mono">
-                            ${(result.result?.final_forecast?.ebitda_ci?.[0] || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-emerald-400 font-semibold">Base Case (P50):</span>
-                          <span className="text-emerald-400 font-bold text-lg font-mono">
-                            ${(result.result?.final_forecast?.ebitda_p50 || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-blue-400">Bull Case (P95):</span>
-                          <span className="text-blue-400 font-mono">
-                            ${(result.result?.final_forecast?.ebitda_ci?.[1] || 0).toLocaleString(undefined, {maximumFractionDigits: 1})}M
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-3 h-2 bg-white/[0.06] rounded-full overflow-hidden relative">
-                        <div className="absolute inset-0 bg-gradient-to-r from-red-500/30 via-emerald-500/50 to-blue-500/30" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* AI Reasoning */}
-                  {result.result?.explanations?.length > 0 && (
-                    <div className="p-5 bg-[#0a0a0b] rounded-lg border border-white/[0.06]">
-                      <h3 className="text-lg font-semibold text-white mb-3">💡 AI Reasoning & Explanations</h3>
-                      <p className="text-sm text-zinc-400 mb-3">Why is the AI predicting this?</p>
-                      <ul className="space-y-2">
-                        {result.result.explanations.map((explanation, idx) => (
-                          <li key={idx} className="flex items-start gap-2 text-zinc-300 text-sm">
-                            <span className="text-emerald-400 mt-1">•</span>
-                            <span>{explanation}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Under the Hood */}
-                  {result.explainability?.confidence_breakdown && (
-                    <div className="p-5 bg-[#0a0a0b] rounded-lg border border-white/[0.06]">
-                      <h3 className="text-lg font-semibold text-white mb-3">🤖 Under the Hood</h3>
-                      <p className="text-sm text-zinc-400 mb-4">Multi-Agent Confidence Breakdown</p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.06]">
-                          <div className="text-xs text-zinc-500 mb-1">NLP Transcript Agent</div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-purple-500 transition-all"
-                                style={{ width: `${(result.explainability.confidence_breakdown.transcript_nlp || 0) * 100}%` }}
-                              />
-                            </div>
-                            <span className="text-white text-sm font-medium">
-                              {Math.round((result.explainability.confidence_breakdown.transcript_nlp || 0) * 100)}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.06]">
-                          <div className="text-xs text-zinc-500 mb-1">Financial Math Model</div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-emerald-500 transition-all"
-                                style={{ width: `${(result.explainability.confidence_breakdown.financial_model || 0) * 100}%` }}
-                              />
-                            </div>
-                            <span className="text-white text-sm font-medium">
-                              {Math.round((result.explainability.confidence_breakdown.financial_model || 0) * 100)}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.06]">
-                          <div className="text-xs text-zinc-500 mb-1">News & Macro Agent</div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-blue-500 transition-all"
-                                style={{ width: `${(result.explainability.confidence_breakdown.news_macro || 0) * 100}%` }}
-                              />
-                            </div>
-                            <span className="text-white text-sm font-medium">
-                              {Math.round((result.explainability.confidence_breakdown.news_macro || 0) * 100)}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.06]">
-                          <div className="text-xs text-zinc-500 mb-1">Competitor Agent</div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-yellow-500 transition-all"
-                                style={{ width: `${(result.explainability.confidence_breakdown.competitor || 0) * 100}%` }}
-                              />
-                            </div>
-                            <span className="text-white text-sm font-medium">
-                              {Math.round((result.explainability.confidence_breakdown.competitor || 0) * 100)}%
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {!loading && result && (
+              <>
+                <ForecastCard result={result} />
+                <ConfidenceBreakdown breakdown={confidenceBreakdown} />
+                <ShapExplainer shapValues={result.explainability?.shap_values || []} />
+              </>
+            )}
           </div>
         </div>
-
-        {/* Audit Modal */}
-        {showAuditModal && result && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="bg-[#111113] border border-white/[0.12] rounded-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-white/[0.06]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">Security & System Audit Log</h2>
-                    <p className="text-sm text-zinc-500 mt-1 font-mono">
-                      Trace Verification: {result.trace_id}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowAuditModal(false)}
-                    className="p-2 hover:bg-white/[0.06] rounded-lg transition-colors"
-                  >
-                    <span className="text-zinc-400 hover:text-white text-2xl">×</span>
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-auto p-6">
-                <div className="bg-[#0a0a0b] rounded-lg p-4 border border-white/[0.06]">
-                  <pre className="text-xs text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap break-words">
-                    {JSON.stringify(result, null, 2)}
-                  </pre>
-                </div>
-              </div>
-              <div className="p-6 border-t border-white/[0.06]">
-                <button
-                  onClick={() => setShowAuditModal(false)}
-                  className="w-full px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors"
-                >
-                  Close Window
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      <AuditModal open={showAuditModal} result={result} onClose={() => setShowAuditModal(false)} />
     </div>
   );
 };

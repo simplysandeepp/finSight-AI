@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GitCompareArrows, Loader2, AlertCircle } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const ComparisonDashboard = () => {
   const [tickersInput, setTickersInput] = useState('AAPL,MSFT');
@@ -7,6 +8,16 @@ const ComparisonDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [results, setResults] = useState([]);
+
+  const compareRows = results.filter((r) => r.status === 'success').map((r) => ({
+    ticker: r.ticker,
+    revenue: Number(r?.result?.result?.final_forecast?.revenue_p50 || 0),
+    confidence: Number(r?.result?.result?.combined_confidence || 0),
+  }));
+
+  const leader = compareRows.length
+    ? [...compareRows].sort((a, b) => b.revenue - a.revenue)[0]
+    : null;
 
   const parseTickers = (raw) => {
     return raw
@@ -99,12 +110,33 @@ const ComparisonDashboard = () => {
       </div>
 
       {results.length > 0 && (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <>
+          <div className="bg-[#111113] border border-white/[0.06] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold">Overlaid Revenue Forecast (P50)</h3>
+              {leader && <span className="text-xs text-emerald-300">Relative strength leader: {leader.ticker}</span>}
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={compareRows}>
+                  <XAxis dataKey="ticker" stroke="#71717a" />
+                  <YAxis stroke="#71717a" />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="revenue" stroke="#34d399" name="Revenue P50 (M)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="confidence" stroke="#60a5fa" name="Confidence" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           {results.map((item) => {
             const recommendation = item?.result?.result?.recommendation?.action || 'monitor';
             const confidence = Math.round((item?.result?.result?.combined_confidence || 0) * 100);
             const revenue = item?.result?.result?.final_forecast?.revenue_p50;
             const ebitda = item?.result?.result?.final_forecast?.ebitda_p50;
+            const strengthScore = typeof revenue === 'number' ? revenue * (confidence / 100) : 0;
 
             return (
               <div key={item.ticker} className="bg-[#111113] border border-white/[0.06] rounded-xl p-5">
@@ -120,12 +152,14 @@ const ComparisonDashboard = () => {
                     <div className="flex justify-between"><span className="text-zinc-500">Confidence</span><span>{confidence}%</span></div>
                     <div className="flex justify-between"><span className="text-zinc-500">Revenue P50</span><span>{typeof revenue === 'number' ? `$${revenue.toFixed(2)}M` : 'N/A'}</span></div>
                     <div className="flex justify-between"><span className="text-zinc-500">EBITDA P50</span><span>{typeof ebitda === 'number' ? `$${ebitda.toFixed(2)}M` : 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-500">Relative Strength</span><span>{strengthScore.toFixed(2)}</span></div>
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+        </>
       )}
     </div>
   );

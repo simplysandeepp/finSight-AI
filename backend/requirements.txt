@@ -27,3 +27,4 @@ yfinance>=0.2
 finnhub-python==2.4.20
 fredapi==0.5.1
 newsapi-python==0.2.7
+reportlab>=4.2

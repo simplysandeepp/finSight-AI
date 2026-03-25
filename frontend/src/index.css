@@ -1,12 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    background-color: #0a0a0b;
-    color: #e4e4e7;
+  :root,
+  [data-theme='dark'] {
+    --app-bg: #0b1018;
+    --app-fg: #e5edf8;
+    --app-card: #131b29;
     color-scheme: dark;
+  }
+
+  [data-theme='light'] {
+    --app-bg: #f3f8ff;
+    --app-fg: #102033;
+    --app-card: #ffffff;
+    color-scheme: light;
   }
 
   html {
@@ -14,8 +25,17 @@
   }
 
   body {
-    @apply m-0 antialiased bg-background text-zinc-100;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    @apply m-0 antialiased;
+    background: var(--app-bg);
+    color: var(--app-fg);
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
   }
 
   /* Anchor offset for fixed nav */
@@ -67,4 +87,16 @@
 ::selection {
   background: rgba(59, 130, 246, 0.3);
   color: #fff;
+}
+
+.bg-app {
+  background: var(--app-bg);
+}
+
+.text-app {
+  color: var(--app-fg);
+}
+
+.bg-card {
+  background: var(--app-card);
 }

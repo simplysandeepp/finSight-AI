@@ -8,14 +8,19 @@ FastAPI REST endpoint for predictions.
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+import asyncio
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, Any
 import uuid
 import os
 import re
+import json
 from datetime import datetime
+from time import time
+import hashlib
 from .orchestrate import orchestrate
 from .websocket import router as websocket_router
 # TODO: re-enable for production - MongoDB audit trail
@@ -27,8 +32,21 @@ from .websocket import router as websocket_router
 from data_sources.csv_loader import validate_and_parse_csv
 from utils.logger import get_logger, set_request_context, clear_request_context
 from utils.rate_limiter import rate_limiter
+from utils.cache_store import prediction_cache, macro_cache, profile_cache
+from database.prediction_history import (
+    init_history_db,
+    save_prediction_record,
+    get_prediction_history,
+    get_recent_predictions,
+    create_user,
+    get_user_by_email,
+    get_user_by_id,
+)
+from auth.jwt_auth import create_token, verify_token
+from utils.report_generator import build_executive_pdf
 
 logger = get_logger(__name__)
+APP_START_TS = int(time())
 
 app = FastAPI(
     title="FinSight AI API",
@@ -37,6 +55,31 @@ app = FastAPI(
 )
 
 app.include_router(websocket_router)
+init_history_db()
+
+
+@app.on_event("startup")
+async def startup_local_db():
+    init_history_db()
+
+
+def _hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def _extract_user(request: Request) -> Optional[dict[str, Any]]:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    token = auth.split(" ", 1)[1].strip()
+    if not token:
+        return None
+    try:
+        payload = verify_token(token)
+        uid = int(payload.get("sub"))
+        return get_user_by_id(uid)
+    except Exception:
+        return None
 
 # Maximum file size for CSV uploads (10MB)
 MAX_CSV_SIZE_MB = 10
@@ -91,7 +134,26 @@ async def logging_middleware(request: Request, call_next):
                     headers={"Retry-After": "60"}
                 )
 
-        response = await call_next(request)
+        prediction_paths = {
+            "/predict",
+            "/api/predict",
+            "/upload-csv",
+            "/api/upload-csv",
+            "/api/predict-batch",
+        }
+
+        if request.url.path in prediction_paths:
+            try:
+                response = await asyncio.wait_for(call_next(request), timeout=60.0)
+            except asyncio.TimeoutError:
+                logger.warning(f"Request timeout after 60s: {request.url.path}")
+                return JSONResponse(
+                    status_code=504,
+                    content={"detail": "Request timeout: prediction exceeded 60 seconds."}
+                )
+        else:
+            response = await call_next(request)
+
         logger.info(
             f"Response {response.status_code}",
             extra={"status_code": response.status_code}
@@ -147,6 +209,17 @@ class PredictRequest(BaseModel):
             )
         return v
 
+    @field_validator('as_of_date')
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        try:
+            datetime.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError(
+                f"Invalid date format '{v}'. Must be YYYY-MM-DD (e.g., 2024-12-31)"
+            )
+        return v
+
 
 class PredictBatchRequest(BaseModel):
     """Request model for batch prediction endpoint."""
@@ -185,21 +258,28 @@ class PredictBatchRequest(BaseModel):
             )
         return v
 
-    @field_validator('as_of_date')
-    @classmethod
-    def validate_date(cls, v: str) -> str:
-        """Validate date format: must be valid ISO date (YYYY-MM-DD)."""
-        try:
-            datetime.strptime(v, '%Y-%m-%d')
-        except ValueError:
-            raise ValueError(
-                f"Invalid date format '{v}'. Must be YYYY-MM-DD (e.g., 2024-12-31)"
-            )
-        return v
 
-@app.post("/predict", response_model=None)
-@app.post("/api/predict", response_model=None)
-async def predict(request: PredictRequest):
+
+class AuthRequest(BaseModel):
+    email: str = Field(..., description="User email")
+    password: str = Field(..., min_length=6, description="User password")
+
+
+class ReportRequest(BaseModel):
+    prediction_result: dict
+
+predict_error_responses = {
+    422: {"description": "Validation error (ticker/date format)."},
+    429: {"description": "Rate limit exceeded."},
+    503: {"description": "Upstream data source failure or insufficient agent outputs."},
+    500: {"description": "Unexpected server error."},
+    504: {"description": "Prediction request exceeded 60-second timeout."},
+}
+
+
+@app.post("/predict", response_model=None, responses=predict_error_responses)
+@app.post("/api/predict", response_model=None, responses=predict_error_responses)
+async def predict(request: PredictRequest, http_request: Request):
     """
     Generate financial predictions for a company.
 
@@ -209,12 +289,27 @@ async def predict(request: PredictRequest):
     Returns revenue and EBITDA forecasts with confidence intervals.
     """
     try:
-        result = await orchestrate(
-            request.company_id,
-            request.as_of_date,
-            # TODO: re-enable for production - pass user_id
-            # user_id=request.user_id
-        )
+        user = _extract_user(http_request)
+        cache_key = f"pred:{request.company_id}:{request.as_of_date}"
+        cached = prediction_cache.get(cache_key)
+        if cached is not None:
+            cached = dict(cached)
+            cached["cache_hit"] = True
+            return cached
+
+        result = await orchestrate(request.company_id, request.as_of_date)
+        result["cache_hit"] = False
+
+        prediction_cache.set(cache_key, result, ttl_seconds=3600)
+        try:
+            save_prediction_record(
+                ticker=request.company_id,
+                as_of_date=request.as_of_date,
+                result=result,
+                user_id=str(user["id"]) if user else None,
+            )
+        except Exception as persist_error:
+            logger.warning(f"Prediction history save failed: {persist_error}")
         return result
     except ValueError as e:
         # Validation errors
@@ -230,14 +325,27 @@ async def predict(request: PredictRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/predict-batch", response_model=None)
+@app.post(
+    "/api/predict-batch",
+    response_model=None,
+    responses={
+        422: {"description": "Validation error (ticker count/date/ticker format)."},
+        429: {"description": "Rate limit exceeded."},
+        500: {"description": "Unexpected server error."},
+        504: {"description": "Batch prediction exceeded 60-second timeout."},
+    },
+)
 async def predict_batch(request: PredictBatchRequest):
     """Run predictions for 2-3 tickers and return side-by-side results."""
     results = []
 
     for ticker in request.tickers:
         try:
-            item = await orchestrate(ticker, request.as_of_date)
+            cache_key = f"pred:{ticker}:{request.as_of_date}"
+            item = prediction_cache.get(cache_key)
+            if item is None:
+                item = await orchestrate(ticker, request.as_of_date)
+                prediction_cache.set(cache_key, item, ttl_seconds=3600)
             results.append({"ticker": ticker, "status": "success", "result": item})
         except Exception as exc:
             logger.warning(f"Batch prediction failed for {ticker}: {exc}")
@@ -261,8 +369,26 @@ async def predict_batch(request: PredictBatchRequest):
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/upload-csv")
-@app.post("/api/upload-csv")
+@app.post(
+    "/upload-csv",
+    responses={
+        400: {"description": "Invalid CSV file, content, or file size."},
+        422: {"description": "Validation error (as_of_date)."},
+        429: {"description": "Rate limit exceeded."},
+        500: {"description": "CSV processing failed."},
+        504: {"description": "CSV prediction exceeded 60-second timeout."},
+    },
+)
+@app.post(
+    "/api/upload-csv",
+    responses={
+        400: {"description": "Invalid CSV file, content, or file size."},
+        422: {"description": "Validation error (as_of_date)."},
+        429: {"description": "Rate limit exceeded."},
+        500: {"description": "CSV processing failed."},
+        504: {"description": "CSV prediction exceeded 60-second timeout."},
+    },
+)
 async def upload_csv(
     file: UploadFile = File(..., description="CSV file with financial data"),
     as_of_date: str = Form(default="2026-01-01", description="Analysis date (YYYY-MM-DD)")
@@ -313,6 +439,15 @@ async def upload_csv(
             override_features=parsed.get("features"),
             override_source="csv_upload"
         )
+        try:
+            save_prediction_record(
+                ticker="CSV_UPLOAD",
+                as_of_date=as_of_date,
+                result=result,
+                user_id=None,
+            )
+        except Exception as persist_error:
+            logger.warning(f"CSV prediction history save failed: {persist_error}")
         return result
     except HTTPException:
         raise
@@ -373,6 +508,128 @@ async def run_backtest_endpoint():
     except Exception as e:
         logger.error(f"Error in /api/run-backtest: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Backtest failed: {str(e)}")
+
+
+@app.get("/api/prediction-history")
+async def prediction_history(ticker: str, limit: int = 50, request: Request = None):
+    ticker = ticker.strip().upper()
+    if not re.match(r'^[A-Z_]{1,12}$', ticker):
+        raise HTTPException(status_code=422, detail="Invalid ticker")
+    user = _extract_user(request) if request else None
+    rows = get_prediction_history(ticker=ticker, limit=max(1, min(limit, 200)), user_id=str(user["id"]) if user else None)
+    return {"ticker": ticker, "count": len(rows), "history": rows}
+
+
+@app.get("/api/sector-overview")
+async def sector_overview():
+    rows = get_recent_predictions(limit=300)
+    by_sector: dict[str, list[dict]] = {}
+    for row in rows:
+        sector = row.get("sector") or "Unknown"
+        by_sector.setdefault(sector, []).append(row)
+
+    sectors = []
+    rank = {"sell": -1, "monitor": 0, "hold": 1, "buy": 2}
+    for sector, items in by_sector.items():
+        scored = [rank.get((i.get("recommendation") or "monitor").lower(), 0) for i in items]
+        avg = sum(scored) / len(scored) if scored else 0
+        avg_label = "positive" if avg > 0.5 else ("negative" if avg < -0.2 else "neutral")
+        best = max(items, key=lambda x: float(x.get("revenue_p50") or 0)) if items else None
+        worst = min(items, key=lambda x: float(x.get("revenue_p50") or 0)) if items else None
+        sectors.append(
+            {
+                "sector": sector,
+                "average_direction": avg_label,
+                "best_company": best.get("ticker") if best else None,
+                "worst_company": worst.get("ticker") if worst else None,
+                "macro_sentiment": "neutral",
+            }
+        )
+    return {"sectors": sectors}
+
+
+@app.post("/api/auth/signup")
+async def auth_signup(body: AuthRequest):
+    if get_user_by_email(body.email):
+        raise HTTPException(status_code=409, detail="Email already exists")
+    role = "admin" if body.email.endswith("@admin.local") else "user"
+    user = create_user(body.email, _hash_password(body.password), role=role)
+    token = create_token({"sub": str(user["id"]), "role": user["role"], "email": user["email"]}, expires_seconds=86400)
+    return {"token": token, "user": user}
+
+
+@app.post("/api/auth/login")
+async def auth_login(body: AuthRequest):
+    row = get_user_by_email(body.email)
+    if not row or row.get("password_hash") != _hash_password(body.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_token({"sub": str(row["id"]), "role": row["role"], "email": row["email"]}, expires_seconds=86400)
+    return {"token": token, "user": {"id": row["id"], "email": row["email"], "role": row["role"]}}
+
+
+@app.post("/api/generate-report")
+async def generate_report(body: ReportRequest):
+    pdf_bytes = build_executive_pdf(body.prediction_result)
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=finsight_executive_report.pdf"},
+    )
+
+
+@app.get("/api/cache/stats")
+async def cache_stats():
+    return {
+        "prediction": prediction_cache.stats(),
+        "macro": macro_cache.stats(),
+        "company_profile": profile_cache.stats(),
+    }
+
+
+@app.get("/api/admin/health")
+async def admin_health(authorization: Optional[str] = Header(default=None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Bearer token")
+
+    token = authorization.split(" ", 1)[1].strip()
+    try:
+        payload = verify_token(token)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    rows = get_recent_predictions(limit=300)
+    avg_latency = 0
+    if rows:
+        latencies = []
+        for r in rows:
+            try:
+                raw = r.get("raw_json")
+                if raw:
+                    parsed = json.loads(raw)
+                    latencies.append(float(parsed.get("latency_ms") or 0))
+            except Exception:
+                continue
+        if latencies:
+            avg_latency = round(sum(latencies) / len(latencies), 2)
+
+    cache = prediction_cache.stats()
+    return {
+        "uptime_seconds": int(time()) - APP_START_TS,
+        "average_prediction_latency_ms": avg_latency,
+        "agent_success_failure_rates": {"note": "derived from degraded_agents in raw history records"},
+        "external_api_status": {
+            "finnhub": "unknown",
+            "fred": "unknown",
+            "newsapi": "unknown",
+            "groq_gemini": "unknown",
+        },
+        "cache_hit_rate": cache.get("hit_rate", 0.0),
+        "cache_stats": cache,
+        "recent_predictions": rows[:15],
+    }
 
 @app.get("/api/model-info")
 async def get_model_info():

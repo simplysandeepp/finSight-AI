@@ -4,6 +4,7 @@
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-production-green.svg)
+![CI](https://github.com/simplysandeepp/finSight-AI/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![React](https://img.shields.io/badge/react-18+-61dafb.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)

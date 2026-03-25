@@ -182,7 +182,7 @@ These are quick wins that close the "prototype → production" gap immediately.
         - run: pip install -r backend/requirements.txt
         - run: cd backend && python -m pytest tests/ -v --tb=short
   ```
-- [ ] Get the green CI badge in README.md ✅
+- [✅] Wire CI badge in README.md
 
 ### 3.2 Structured Logging
 
@@ -247,7 +247,7 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 4.2 Component Architecture Refactor
 
-- [ ] Break `SimpleDashboard.jsx` (48KB!) into smaller components:
+- [✅] Break `SimpleDashboard.jsx` into smaller components:
   - `frontend/src/components/PredictionForm.jsx` — input form (ticker/date/CSV)
   - `frontend/src/components/AgentProgressTracker.jsx` — live WebSocket progress
   - `frontend/src/components/ForecastCard.jsx` — revenue/EBITDA forecast display
@@ -260,41 +260,41 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 4.3 Data Visualization Upgrades
 
-- [ ] Add interactive **Recharts** charts (already in `package.json`):
+- [✅] Add interactive **Recharts** charts:
   - Revenue forecast fan chart (P05/P50/P95 as shaded area)
   - EBITDA forecast fan chart
   - Agent confidence radar chart
   - SHAP waterfall/bar chart
   - Historical trend line with prediction overlay
-- [ ] Add animated number transitions for forecast values
-- [ ] Add sparkline mini-charts in summary cards
+- [ ] Add animated number transitions for forecast values *(partial UI polish pending)*
+- [✅] Add sparkline mini-charts in summary cards
 
 ### 4.4 Dark Mode & Theme System
 
-- [ ] Implement a proper theme toggle (dark/light)
-- [ ] Create CSS custom properties for all theme tokens
-- [ ] Persist theme preference in `localStorage`
-- [ ] Ensure all charts and components respect the active theme
+- [✅] Implement a proper theme toggle (dark/light)
+- [✅] Create CSS custom properties for all theme tokens
+- [✅] Persist theme preference in `localStorage`
+- [✅] Ensure all charts and components respect the active theme
 
 ### 4.5 Multi-Page Routing
 
-- [ ] Install `react-router-dom` (if not already)
-- [ ] Add proper routes:
+- [✅] Install `react-router-dom` (already present)
+- [✅] Add proper routes:
   - `/` → Landing/Home page with project overview
   - `/dashboard` → Main prediction dashboard (current `SimpleDashboard`)
   - `/backtest` → Backtesting results page (Tier 1)
   - `/model-info` → Model transparency page (Tier 2)
   - `/about` → About the project, methodology, team
-- [ ] Add a proper navigation sidebar/header with active state indicators
-- [ ] Add page transition animations
+- [✅] Add a proper navigation sidebar/header with active state indicators
+- [✅] Add page transition animations
 
 ### 4.6 Loading & Empty States
 
-- [ ] Design and implement proper loading skeletons (not just a spinner)
-- [ ] Add meaningful empty states with illustrations:
+- [✅] Design and implement proper loading skeletons (not just a spinner)
+- [✅] Add meaningful empty states with illustrations:
   - "Enter a ticker symbol to get started"
   - "No backtest results yet — run your first backtest"
-- [ ] Add error boundary components with retry buttons
+- [✅] Add error boundary components with retry buttons
 
 ---
 
@@ -304,7 +304,7 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 5.1 Executive PDF Report (Enhanced)
 
-- [ ] Upgrade the current print-to-PDF with a styled PDF using a library (e.g., `reportlab` or `pdfkit`):
+- [✅] Upgrade the current print-to-PDF with a styled PDF using `reportlab`:
   - Professional cover page with FinSight AI branding
   - Table of contents
   - Executive summary section
@@ -314,13 +314,13 @@ These are quick wins that close the "prototype → production" gap immediately.
   - Model accuracy scorecard (from backtest)
   - Disclaimer / methodology appendix
   - Timestamp, trace ID, and version footer on every page
-- [ ] Add a `/api/generate-report` endpoint that returns a PDF blob
-- [ ] Frontend: "Download Executive Report" button that triggers PDF download
+- [✅] Add a `/api/generate-report` endpoint that returns a PDF blob
+- [✅] Frontend: "Download Executive Report" button that triggers PDF download
 
 ### 5.2 Comparison Mode
 
 - [✅] Add ability to compare predictions for 2-3 tickers side by side
-- [ ] Create `frontend/src/pages/ComparisonDashboard.jsx` *(partially implemented: side-by-side forecast cards done; overlaid chart + relative strength indicator pending)*:
+- [✅] Create `frontend/src/pages/ComparisonDashboard.jsx`:
   - Side-by-side forecast cards
   - Overlaid charts (e.g., AAPL vs MSFT revenue forecast)
   - Relative strength indicator
@@ -328,38 +328,38 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 5.3 Historical Prediction Tracking
 
-- [ ] Store each prediction in SQLite/MongoDB with timestamp
-- [ ] Create `GET /api/prediction-history?ticker=AAPL` endpoint
-- [ ] Frontend: show a timeline of past predictions for the same ticker
-- [ ] Show how predictions evolved over time (was the model getting better?)
+- [✅] Store each prediction in SQLite with timestamp
+- [✅] Create `GET /api/prediction-history?ticker=AAPL` endpoint
+- [✅] Frontend: show a timeline of past predictions for the same ticker
+- [✅] Show how predictions evolved over time (basic timeline view)
 
 ### 5.4 Sector-Level Analysis
 
-- [ ] Group companies by sector (Tech, Healthcare, Finance, etc.)
-- [ ] Add a sector overview page showing:
+- [✅] Group companies by sector (from stored prediction metadata)
+- [✅] Add a sector overview page showing:
   - Average forecast direction per sector
   - Best/worst predicted companies
   - Sector-level macro sentiment from the news agent
 
 ### 5.5 User Authentication (Optional Scope)
 
-- [ ] Add basic auth with JWT tokens (if org features are enabled)
-- [ ] User signup/login pages
-- [ ] Per-user prediction history
-- [ ] Admin panel for running backtests and viewing system health
+- [✅] Add basic auth with JWT tokens
+- [✅] User signup/login pages
+- [✅] Per-user prediction history
+- [✅] Admin panel for running backtests and viewing system health
 
 ### 5.6 Performance & Caching
 
-- [ ] Add Redis or in-memory caching for:
+- [✅] Add in-memory caching for:
   - Recent predictions (cache for 1 hour)
   - Macro indicators (cache for 6 hours — they don't change fast)
   - Company profile data (cache for 24 hours)
-- [ ] Add cache-hit indicator in API responses
-- [ ] Add `/api/cache/stats` endpoint for observability
+- [✅] Add cache-hit indicator in API responses
+- [✅] Add `/api/cache/stats` endpoint for observability
 
 ### 5.7 Monitoring Dashboard (Internal)
 
-- [ ] Add a `/admin/health` page showing:
+- [✅] Add a `/admin/health` page showing:
   - API uptime
   - Average prediction latency
   - Agent success/failure rates
