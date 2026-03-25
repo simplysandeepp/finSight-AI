@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 # Add backend to path
-backend_dir = Path(__file__).parent.parent
+backend_dir = Path(__file__).resolve().parent
 sys.path.append(str(backend_dir))
 
 from features.feature_store import main as run_feature_store
@@ -23,7 +23,7 @@ def main():
         run_feature_store()
     except Exception as e:
         print(f"❌ Feature generation failed: {e}")
-        return
+        return 1
 
     print("\n[Step 2/2] Training Financial Models (XGBoost Quantile Regression)...")
     try:
@@ -31,11 +31,12 @@ def main():
         agent.train()
     except Exception as e:
         print(f"❌ Model training failed: {e}")
-        return
+        return 1
     
     print("\n" + "="*50)
     print("✅ Training Complete. Assets ready in 'backend/out/' folder.")
     print("="*50 + "\n")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

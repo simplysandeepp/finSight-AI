@@ -20,6 +20,47 @@ MANIFEST_OUT = BASE_DIR / "out" / "feature_manifest.json"
 DATA_IN_REAL = BASE_DIR / "out" / "real_training_data.csv"
 DATA_IN_SYNTHETIC = BASE_DIR / "out" / "synthetic_financials.csv"
 
+
+def normalize_input_schema(df: pd.DataFrame) -> pd.DataFrame:
+    """Map real/synthetic input variants into a common training schema."""
+    df = df.copy()
+
+    # Company identifier
+    if 'company_id' not in df.columns:
+        if 'ticker' in df.columns:
+            df['company_id'] = df['ticker'].astype(str)
+        else:
+            raise KeyError("Missing company identifier column. Expected one of: company_id, ticker")
+
+    # Date normalization
+    if 'date' not in df.columns:
+        raise KeyError("Missing date column in training data")
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+
+    # Required numeric targets/features
+    required_numeric = ['revenue', 'ebitda']
+    for col in required_numeric:
+        if col not in df.columns:
+            raise KeyError(f"Missing required numeric column: {col}")
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # Optional numeric column used by downstream consumers
+    if 'net_income' in df.columns:
+        df['net_income'] = pd.to_numeric(df['net_income'], errors='coerce')
+
+    # Derived features required by compute_features
+    if 'ebitda_margin' not in df.columns:
+        df['ebitda_margin'] = np.where(df['revenue'] != 0, df['ebitda'] / df['revenue'], np.nan)
+
+    if 'quarter' not in df.columns:
+        df['quarter'] = df['date'].dt.quarter.map(lambda q: f"Q{q}")
+
+    # Scenario exists in synthetic data; default to neutral for real data
+    if 'scenario' not in df.columns:
+        df['scenario'] = 'neutral'
+
+    return df
+
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Computes lag features, rolling windows, and growth metrics.
@@ -91,12 +132,12 @@ def temporal_split(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Dat
     
     manifest = {
         "split_dates": {
-            "train_start": train_dates[0],
-            "train_end": train_dates[-1],
-            "val_start": val_dates[0],
-            "val_end": val_dates[-1],
-            "test_start": test_dates[0],
-            "test_end": test_dates[-1]
+            "train_start": str(train_dates[0]),
+            "train_end": str(train_dates[-1]),
+            "val_start": str(val_dates[0]),
+            "val_end": str(val_dates[-1]),
+            "test_start": str(test_dates[0]),
+            "test_end": str(test_dates[-1])
         },
         "row_counts": {
             "train": len(train_df),
@@ -121,6 +162,7 @@ def main():
 
     logger.info(f"Loading data from {data_file}")
     df = pd.read_csv(data_file)
+    df = normalize_input_schema(df)
     
     df_featured = compute_features(df)
     

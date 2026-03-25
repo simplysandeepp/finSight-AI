@@ -3,6 +3,7 @@
 
 import pandas as pd
 import time
+from pathlib import Path
 from data_sources.finnhub_loader import get_company_financials
 
 # A good list of large-cap companies to train on (diverse sectors)
@@ -26,6 +27,9 @@ TRAINING_TICKERS = [
     "DIS", "NFLX", "CRM",
 ]
 
+BASE_DIR = Path(__file__).resolve().parent
+OUT_FILE = BASE_DIR / "out" / "real_training_data.csv"
+
 def collect_all_data():
     all_records = []
     
@@ -41,8 +45,9 @@ def collect_all_data():
         time.sleep(0.5)  # respect rate limits (60 calls/min free tier)
     
     df = pd.DataFrame(all_records)
-    df.to_csv("out/real_training_data.csv", index=False)
-    print(f"Saved {len(df)} rows of real data to out/real_training_data.csv")
+    OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(OUT_FILE, index=False)
+    print(f"Saved {len(df)} rows of real data to {OUT_FILE}")
     return df
 
 if __name__ == "__main__":

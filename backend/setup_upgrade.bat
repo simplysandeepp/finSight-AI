@@ -34,6 +34,10 @@ REM Collect training data
 echo Collecting real training data from Finnhub...
 echo This will take ~5 minutes due to API rate limits...
 python collect_training_data.py
+if errorlevel 1 (
+    echo Failed to collect training data
+    exit /b 1
+)
 
 if not exist "out\real_training_data.csv" (
     echo Failed to collect training data
@@ -46,7 +50,12 @@ echo.
 
 REM Build features
 echo Building features from real data...
+if exist "out\features_v1.pkl" del /f /q "out\features_v1.pkl"
 python -c "from features.feature_store import main; main()"
+if errorlevel 1 (
+    echo Failed to build features
+    exit /b 1
+)
 
 if not exist "out\features_v1.pkl" (
     echo Failed to build features
@@ -59,7 +68,12 @@ echo.
 
 REM Train model
 echo Training XGBoost model on real data...
+if exist "out\financial_model.pkl" del /f /q "out\financial_model.pkl"
 python train_pipeline.py
+if errorlevel 1 (
+    echo Failed to train model
+    exit /b 1
+)
 
 if not exist "out\financial_model.pkl" (
     echo Failed to train model

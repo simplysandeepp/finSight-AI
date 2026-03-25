@@ -79,14 +79,14 @@ class FinancialModelAgent(BaseAgent):
         val_df = data['val']
         
         # Load feature list from manifest if possible, otherwise use a default set
-        manifest_path = Path("out/feature_manifest.json")
+        manifest_path = BASE_DIR / "out" / "feature_manifest.json"
         if manifest_path.exists():
             import json
             with open(manifest_path, 'r') as f:
                 feature_cols = json.load(f)['feature_list']
         else:
             # Fallback to non-target/non-id columns if manifest is missing
-            exclude = ['company_id', 'date', 'quarter', 'revenue', 'ebitda', 'net_income', 'eps', 'revenue_growth', 'ebitda_margin', 'guidance_flag', 'sentiment_score', 'topic_confidence', 'transcript_excerpt', 'restatement_flag', 'seed', 'provenance_note']
+            exclude = ['company_id', 'ticker', 'date', 'quarter', 'revenue', 'ebitda', 'net_income', 'eps', 'revenue_growth', 'ebitda_margin', 'guidance_flag', 'sentiment_score', 'topic_confidence', 'transcript_excerpt', 'restatement_flag', 'seed', 'provenance_note']
             feature_cols = [c for c in train_df.columns if c not in exclude]
 
         self.logger.info(f"Training models with {len(feature_cols)} features: {feature_cols}")
