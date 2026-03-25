@@ -93,8 +93,8 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     # 3. Growth (YoY = 4Q lag, QoQ = 1Q lag)
     # Rev Growth YoY = (Rev_T / Rev_{T-4}) - 1
     # Rev Growth QoQ = (Rev_T / Rev_{T-1}) - 1
-    df['revenue_growth_yoy'] = df.groupby('company_id')['revenue'].pct_change(4)
-    df['revenue_growth_qoq'] = df.groupby('company_id')['revenue'].pct_change(1)
+    df['revenue_growth_yoy'] = df.groupby('company_id')['revenue'].pct_change(4, fill_method=None)
+    df['revenue_growth_qoq'] = df.groupby('company_id')['revenue'].pct_change(1, fill_method=None)
     
     # 4. One-hot encode scenario
     logger.info("One-hot encoding scenario column")

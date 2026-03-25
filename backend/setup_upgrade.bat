@@ -48,26 +48,9 @@ echo.
 echo Training data collected!
 echo.
 
-REM Build features
-echo Building features from real data...
-if exist "out\features_v1.pkl" del /f /q "out\features_v1.pkl"
-python -c "from features.feature_store import main; main()"
-if errorlevel 1 (
-    echo Failed to build features
-    exit /b 1
-)
-
-if not exist "out\features_v1.pkl" (
-    echo Failed to build features
-    exit /b 1
-)
-
-echo.
-echo Features built!
-echo.
-
 REM Train model
 echo Training XGBoost model on real data...
+if exist "out\features_v1.pkl" del /f /q "out\features_v1.pkl"
 if exist "out\financial_model.pkl" del /f /q "out\financial_model.pkl"
 python train_pipeline.py
 if errorlevel 1 (
