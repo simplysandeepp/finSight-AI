@@ -56,7 +56,7 @@ const SimpleDashboard = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('http://localhost:8000/predict', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company_id: ticker, as_of_date: date }),
@@ -96,7 +96,7 @@ const SimpleDashboard = () => {
       const formData = new FormData();
       formData.append('file', csvFile);
       formData.append('as_of_date', orgDate);
-      const response = await fetch('http://localhost:8000/upload-csv', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/upload-csv`, {
         method: 'POST',
         body: formData,
       });

@@ -4,7 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: "cd backend && pip install -r requirements.txt && python train_pipeline.py"
+    buildCommand: "cd backend && pip install -r requirements.txt && python collect_training_data.py && python train_pipeline.py"
     startCommand: "cd backend && uvicorn orchestrator.api:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: GROQ_API_KEY_1
