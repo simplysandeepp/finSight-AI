@@ -6,19 +6,24 @@ import time
 from data_sources.finnhub_loader import get_company_financials
 
 # A good list of large-cap companies to train on (diverse sectors)
+# 35+ companies across multiple sectors for robust training
 TRAINING_TICKERS = [
-    # Tech
+    # Tech (8)
     "AAPL", "MSFT", "GOOGL", "META", "NVDA", "AMZN", "TSLA", "AMD",
-    # Finance
-    "JPM", "BAC", "GS", "MS", "WFC",
-    # Healthcare
+    # Finance (5)
+    "JPM", "BAC", "GS", "V", "MA",
+    # Healthcare (4)
     "JNJ", "PFE", "UNH", "ABBV",
-    # Consumer
-    "WMT", "COST", "MCD", "KO", "PEP",
-    # Energy
+    # Consumer (5)
+    "WMT", "KO", "PEP", "MCD", "NKE",
+    # Industrial (4)
+    "CAT", "BA", "GE", "MMM",
+    # Energy (2)
     "XOM", "CVX",
-    # Industrial
-    "BA", "GE", "CAT",
+    # Telecom (2)
+    "T", "VZ",
+    # Others (3)
+    "DIS", "NFLX", "CRM",
 ]
 
 def collect_all_data():

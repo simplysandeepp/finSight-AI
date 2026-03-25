@@ -349,6 +349,12 @@ def generate_dataset(args: argparse.Namespace) -> pd.DataFrame:
             f"restated_v{DATASET_VERSION}; original_noise={noise:.4f}"
         )
 
+    # Keep temporal consistency after restatements by recalculating growth.
+    df = df.sort_values(["company_id", "date"]).copy()
+    prev_rev = df.groupby("company_id")["revenue"].shift(1)
+    recomputed_growth = (df["revenue"] / prev_rev - 1).fillna(0.0)
+    df["revenue_growth"] = recomputed_growth
+
     # Drop internal helper columns
     df.drop(columns=["_tmpl_idx", "_mismatch"], inplace=True, errors="ignore")
 

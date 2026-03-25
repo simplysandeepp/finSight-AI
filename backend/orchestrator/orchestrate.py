@@ -504,14 +504,18 @@ async def orchestrate(
         logger.warning(f"SHAP generation failed: {e}")
     
     latency_ms = int((time.time() - start_time) * 1000)
-    
+
+    # Get actual model version from financial_model agent
+    fm_agent = agents.get("financial_model")
+    actual_model_version = fm_agent.model_version if fm_agent else "unknown"
+
     # Persist to audit DB (fire-and-forget, don't block response)
     # TODO: re-enable for production - MongoDB audit trail with user_id
     try:
         await persist_request({
             "request_id": request_id,
             "trace_id": trace_id,
-            "model_version": "bundle_v1",
+            "model_version": actual_model_version,
             "company_id": company_id,
             "status": "success" if not degraded_agents else "partial",
             "latency_ms": latency_ms,
@@ -521,11 +525,11 @@ async def orchestrate(
         })  # user_id parameter commented out
     except Exception as e:
         logger.warning(f"Audit persist failed: {e}")
-    
+
     return {
         "request_id": request_id,
         "trace_id": trace_id,
-        "model_version": "bundle_v1",
+        "model_version": actual_model_version,
         "status": "success" if not degraded_agents else "partial",
         "latency_ms": latency_ms,
         "result": final_output_dict,

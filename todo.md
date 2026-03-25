@@ -43,9 +43,9 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 1.1 Backend: Backtesting Engine
 
-- [ ] Create `backend/backtest/` directory
-- [ ] Create `backend/backtest/__init__.py`
-- [ ] Create `backend/backtest/run_backtest.py`:
+- [✅] Create `backend/backtest/` directory
+- [✅] Create `backend/backtest/__init__.py`
+- [✅] Create `backend/backtest/run_backtest.py`:
   - Define backtest config constants:
     ```
     BACKTEST_TICKERS = ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA"]
@@ -66,19 +66,19 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 1.2 Backend: Backtest API Endpoint
 
-- [ ] Add `GET /api/backtest-results` in `backend/orchestrator/api.py`
+- [✅] Add `GET /api/backtest-results` in `backend/orchestrator/api.py`
   - Returns cached backtest results from `out/backtest_results.json`
   - Include per-ticker breakdown + aggregate metrics
-- [ ] Add `POST /api/run-backtest` (optional, admin-only)
+- [✅] Add `POST /api/run-backtest` (optional, admin-only)
   - Triggers a fresh backtest run
   - Returns job status or results
 
 ### 1.3 Frontend: Backtest Dashboard Page
 
-- [ ] Create `frontend/src/pages/BacktestDashboard.jsx`
-- [ ] Add route in `frontend/src/App.jsx` → `/backtest`
-- [ ] Add navigation link in sidebar/topbar
-- [ ] Build the backtest results UI:
+- [✅] Create `frontend/src/pages/BacktestDashboard.jsx`
+- [✅] Add route in `frontend/src/App.jsx` → `/backtest`
+- [✅] Add navigation link in sidebar/topbar
+- [✅] Build the backtest results UI:
   - **Accuracy Scorecard** — table showing each ticker with MAPE, coverage %, and a ✅/❌ pass/fail indicator
   - **Prediction vs Actual Chart** — Recharts line chart per ticker:
     - Shaded band = P05–P95 prediction interval
@@ -90,10 +90,10 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 1.4 Backtest Integration into Main Dashboard
 
-- [ ] Add a small "Model Accuracy" badge/chip on the main prediction results page
+- [✅] Add a small "Model Accuracy" badge/chip on the main prediction results page
   - Shows overall MAPE and coverage % from the latest backtest
   - Links to the full `/backtest` page
-- [ ] Add a tooltip: "Verified against 12 quarters of real market data"
+- [✅] Add a tooltip: "Verified against 12 quarters of real market data"
 
 ---
 
@@ -103,8 +103,8 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 2.1 Model Info API Endpoint
 
-- [ ] Create `GET /api/model-info` endpoint in `backend/orchestrator/api.py`
-- [ ] Return structured model metadata:
+- [✅] Create `GET /api/model-info` endpoint in `backend/orchestrator/api.py`
+- [✅] Return structured model metadata:
   ```json
   {
     "trained_on": "31 real companies",
@@ -118,19 +118,19 @@ These are quick wins that close the "prototype → production" gap immediately.
     "data_source": "Finnhub + yFinance quarterly financials"
   }
   ```
-- [ ] Read this data from `backend/out/feature_manifest.json` + model artifact metadata
+- [✅] Read this data from `backend/out/feature_manifest.json` + model artifact metadata
 
 ### 2.2 Frontend: Model Transparency Panel
 
-- [ ] Add a "Model Info" section/card in the dashboard UI
-- [ ] Display: what data the model was trained on, training window, MAPE score, coverage %
-- [ ] Add a "?" tooltip explaining what each metric means in plain English
-- [ ] Users immediately trust a model that openly shows its credentials
+- [✅] Add a "Model Info" section/card in the dashboard UI
+- [✅] Display: what data the model was trained on, training window, MAPE score, coverage %
+- [✅] Add a "?" tooltip explaining what each metric means in plain English
+- [✅] Users immediately trust a model that openly shows its credentials
 
 ### 2.3 Retrain on Real Company Data (Production Pipeline)
 
-- [ ] Review `backend/collect_training_data.py` — ensure it fetches data for 30+ diverse companies
-- [ ] Update the ticker list to cover multiple sectors:
+- [✅] Review `backend/collect_training_data.py` — ensure it fetches data for 30+ diverse companies
+- [✅] Update the ticker list to cover multiple sectors:
   - Tech: AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA
   - Finance: JPM, GS, BAC, V, MA
   - Healthcare: JNJ, UNH, PFE, ABBV
@@ -139,16 +139,16 @@ These are quick wins that close the "prototype → production" gap immediately.
   - Energy: XOM, CVX
   - Telecom: T, VZ
   - Others: DIS, NFLX, CRM
-- [ ] Run the full pipeline: `collect_training_data.py` → `train_pipeline.py`
-- [ ] Validate new model against the evaluation suite in `backend/evaluation/evaluator.py`
-- [ ] Save new model artifacts to `backend/out/` and commit
+- [ ] Run the full pipeline: `collect_training_data.py` → `train_pipeline.py` *(external work)*
+- [ ] Validate new model against the evaluation suite in `backend/evaluation/evaluator.py` *(external work)*
+- [ ] Save new model artifacts to `backend/out/` and commit *(external work)*
 
 ### 2.4 Model Versioning
 
-- [ ] Add a `model_version` field to the model bundle (`financial_model.pkl`)
-- [ ] Store version in `backend/out/model_metadata.json`
-- [ ] Include model version in every API response (already partially there via `model_version` field)
-- [ ] Log model version in predictions for audit trail
+- [✅] Add a `model_version` field to the model bundle (`financial_model.pkl`)
+- [✅] Store version in `backend/out/model_metadata.json`
+- [✅] Include model version in every API response (already partially there via `model_version` field)
+- [✅] Log model version in predictions for audit trail
 
 ---
 
@@ -158,16 +158,16 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 3.1 Fix Test Suite & Add CI
 
-- [ ] Review and fix `backend/tests/test_orchestrator.py`:
+- [✅] Review and fix `backend/tests/test_orchestrator.py`:
   - Update function signatures to match current `orchestrate()` API
   - Ensure mocks align with current agent interfaces
-- [ ] Review and fix `backend/tests/test_agents.py`:
+- [✅] Review and fix `backend/tests/test_agents.py`:
   - Verify agent input/output contracts match current implementations
-- [ ] Review and fix `backend/tests/test_api.py`:
+- [✅] Review and fix `backend/tests/test_api.py`:
   - Ensure test client uses correct request schemas
-- [ ] Verify `backend/synthetic_financial_gen/tests/test_generator.py` still passes
-- [ ] Create `backend/tests/test_backtest.py` (after Tier 1 is done)
-- [ ] Create `.github/workflows/ci.yml`:
+- [✅] Verify `backend/synthetic_financial_gen/tests/test_generator.py` still passes
+- [✅] Create `backend/tests/test_backtest.py` (after Tier 1 is done)
+- [✅] Create `.github/workflows/ci.yml`:
   ```yaml
   name: CI
   on: [push, pull_request]
@@ -186,22 +186,22 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 3.2 Structured Logging
 
-- [ ] Replace all `print()` statements in backend with `logging` module calls
-- [ ] Create `backend/utils/logger.py` with a consistent logging config:
+- [✅] Replace all `print()` statements in backend with `logging` module calls
+- [✅] Create `backend/utils/logger.py` with a consistent logging config:
   - JSON-formatted logs for production
   - Human-readable format for development
   - Log levels: DEBUG, INFO, WARNING, ERROR
-- [ ] Add request-scoped logging (trace_id + request_id in every log line)
-- [ ] Log agent start/complete/fail events with latency
+- [✅] Add request-scoped logging (trace_id + request_id in every log line)
+- [✅] Log agent start/complete/fail events with latency
 
 ### 3.3 Error Handling & Input Validation
 
-- [ ] Add Pydantic validation on all API request models with clear error messages
-- [ ] Add ticker symbol validation (must be 1-5 uppercase letters)
-- [ ] Add date format validation (must be valid ISO date)
-- [ ] Add CSV validation with specific error messages for missing columns
-- [ ] Add file size limit on CSV upload (e.g., 10MB max)
-- [ ] Return proper HTTP status codes consistently:
+- [✅] Add Pydantic validation on all API request models with clear error messages
+- [✅] Add ticker symbol validation (must be 1-5 uppercase letters)
+- [✅] Add date format validation (must be valid ISO date)
+- [✅] Add CSV validation with specific error messages for missing columns
+- [✅] Add file size limit on CSV upload (e.g., 10MB max)
+- [✅] Return proper HTTP status codes consistently:
   - 400 for bad input
   - 422 for validation errors
   - 503 for upstream API failures
@@ -209,19 +209,19 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 3.4 Rate Limiting & Security
 
-- [ ] Add rate limiting middleware to FastAPI (e.g., `slowapi` or custom):
+- [✅] Add rate limiting middleware to FastAPI (e.g., `slowapi` or custom):
   - 10 predictions per minute per IP for anonymous users
   - Higher limits for authenticated users (future scope)
-- [ ] Add CORS configuration — restrict allowed origins in production
-- [ ] Sanitize all user inputs (ticker symbols, dates, filenames)
-- [ ] Add request timeout handling — 60-second max per prediction
+- [✅] Add CORS configuration — restrict allowed origins in production
+- [✅] Sanitize all user inputs (ticker symbols, dates, filenames)
+- [ ] Add request timeout handling — 60-second max per prediction *(optional - low priority)*
 
 ### 3.5 API Documentation
 
-- [ ] Enhance FastAPI auto-docs with descriptive tags, summaries, and examples
-- [ ] Add response model schemas for all endpoints
-- [ ] Add example requests/responses in the OpenAPI spec
-- [ ] Document error response formats
+- [✅] Enhance FastAPI auto-docs with descriptive tags, summaries, and examples
+- [✅] Add response model schemas for all endpoints
+- [✅] Add example requests/responses in the OpenAPI spec
+- [ ] Document error response formats *(partially done via validation)*
 
 ---
 
@@ -231,7 +231,7 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 4.1 WebSocket Real-Time Agent Progress
 
-- [ ] Create `backend/orchestrator/websocket.py`:
+- [✅] Create `backend/orchestrator/websocket.py`:
   - FastAPI WebSocket endpoint at `/ws/predict`
   - As each step completes, push status messages:
     - `{"step": "data_fetch", "status": "running", "message": "🔍 Fetching Finnhub data..."}`
@@ -239,7 +239,7 @@ These are quick wins that close the "prototype → production" gap immediately.
     - `{"step": "news_macro", "status": "running", "message": "⏳ Analyzing news & macro signals..."}`
     - etc.
   - Final message includes the complete prediction result
-- [ ] Update `frontend/src/pages/SimpleDashboard.jsx`:
+- [✅] Update `frontend/src/pages/SimpleDashboard.jsx`:
   - Replace the silent spinner with a live progress feed
   - Show each agent's status in real-time with animated transitions
   - Visual timeline/stepper component showing agent execution progress
@@ -319,12 +319,12 @@ These are quick wins that close the "prototype → production" gap immediately.
 
 ### 5.2 Comparison Mode
 
-- [ ] Add ability to compare predictions for 2-3 tickers side by side
-- [ ] Create `frontend/src/pages/ComparisonDashboard.jsx`:
+- [✅] Add ability to compare predictions for 2-3 tickers side by side
+- [ ] Create `frontend/src/pages/ComparisonDashboard.jsx` *(partially implemented: side-by-side forecast cards done; overlaid chart + relative strength indicator pending)*:
   - Side-by-side forecast cards
   - Overlaid charts (e.g., AAPL vs MSFT revenue forecast)
   - Relative strength indicator
-- [ ] Backend: batch predict endpoint `POST /api/predict-batch`
+- [✅] Backend: batch predict endpoint `POST /api/predict-batch`
 
 ### 5.3 Historical Prediction Tracking
 

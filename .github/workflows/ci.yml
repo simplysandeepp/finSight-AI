@@ -1,0 +1,31 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Run tests
+        run: |
+          cd backend
+          python -m pytest tests/ -v --tb=short
+        env:
+          # Set dummy API keys for testing (tests should mock external calls)
+          FINNHUB_API_KEY: test_key
+          FRED_API_KEY: test_key
+          NEWS_API_KEY: test_key
+          GROQ_API_KEY_1: test_key
+          GEMINI_API_KEY: test_key

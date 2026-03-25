@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Building2, User, Loader2, CheckCircle, AlertCircle, Upload, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { TrendingUp, Building2, User, Loader2, CheckCircle, AlertCircle, Upload, FileText, Activity, Info } from 'lucide-react';
+import AgentProgressTracker from '../components/AgentProgressTracker.jsx';
 
 const SimpleDashboard = () => {
   const [role, setRole] = useState('investor');
@@ -12,6 +14,10 @@ const SimpleDashboard = () => {
   const [csvFile, setCsvFile] = useState(null);
   const [orgDate, setOrgDate] = useState('2026-01-01');
   const [notifications, setNotifications] = useState([]);
+  const [backtestStats, setBacktestStats] = useState(null);
+  const [modelInfo, setModelInfo] = useState(null);
+  const [showModelInfo, setShowModelInfo] = useState(false);
+  const [agentProgress, setAgentProgress] = useState([]);
 
   const pushNotification = (type, message) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -34,6 +40,12 @@ const SimpleDashboard = () => {
       : `Request failed with status ${response.status}`;
   };
 
+  const getWsUrl = () => {
+    const base = (import.meta.env.VITE_API_URL || '').trim();
+    if (!base) return '';
+    return `${base.replace(/^http/i, 'ws')}/ws/predict`;
+  };
+
   useEffect(() => {
     const savedResult = sessionStorage.getItem('lastPrediction');
     if (savedResult) {
@@ -51,20 +63,107 @@ const SimpleDashboard = () => {
     }
   }, [result]);
 
+  // Fetch backtest stats for Model Accuracy badge
+  useEffect(() => {
+    const fetchBacktestStats = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/backtest-results`);
+        if (response.ok) {
+          const data = await response.json();
+          setBacktestStats(data.overall_summary);
+        }
+      } catch (err) {
+        // Silently fail - backtest stats are optional
+        console.log('Backtest stats not available');
+      }
+    };
+    fetchBacktestStats();
+  }, []);
+
+  // Fetch model info for transparency panel
+  useEffect(() => {
+    const fetchModelInfo = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/model-info`);
+        if (response.ok) {
+          const data = await response.json();
+          setModelInfo(data);
+        }
+      } catch (err) {
+        console.log('Model info not available');
+      }
+    };
+    fetchModelInfo();
+  }, []);
+
   const handleInvestorSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setAgentProgress([]);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ company_id: ticker, as_of_date: date }),
-      });
-      if (!response.ok) {
-        throw new Error(await extractApiError(response));
+      const wsUrl = getWsUrl();
+      if (!wsUrl) {
+        throw new Error('VITE_API_URL is not configured.');
       }
-      const data = await response.json();
+
+      const data = await new Promise((resolve, reject) => {
+        const socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+          socket.send(JSON.stringify({ company_id: ticker, as_of_date: date }));
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+
+            if (payload.type === 'progress') {
+              setAgentProgress((prev) => {
+                const next = [...prev];
+                const index = next.findIndex((item) => item.step === payload.step);
+                const step = {
+                  step: payload.step,
+                  status: payload.status,
+                  message: payload.message,
+                  latency_ms: payload.latency_ms,
+                };
+
+                if (index === -1) {
+                  next.push(step);
+                } else {
+                  next[index] = { ...next[index], ...step };
+                }
+                return next;
+              });
+              return;
+            }
+
+            if (payload.type === 'final') {
+              resolve(payload.result);
+              socket.close();
+              return;
+            }
+
+            if (payload.type === 'error') {
+              reject(new Error(payload.message || 'WebSocket prediction failed'));
+              socket.close();
+            }
+          } catch (parseErr) {
+            reject(new Error('Invalid WebSocket response payload'));
+            socket.close();
+          }
+        };
+
+        socket.onerror = () => {
+          reject(new Error('WebSocket connection failed'));
+        };
+
+        socket.onclose = () => {
+          // noop: completion is handled via final/error events.
+        };
+      });
+
       setResult(data);
 
       if (data?.status === 'partial') {
@@ -714,13 +813,129 @@ const SimpleDashboard = () => {
                 </button>
               </div>
             )}
+
+            {/* Box 6: Model Transparency */}
+            {modelInfo && (
+              <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">🔬 Model Transparency</h3>
+                  <button
+                    onClick={() => setShowModelInfo(!showModelInfo)}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    {showModelInfo ? 'Hide Details' : 'Show Details'}
+                  </button>
+                </div>
+
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-white/[0.02] rounded-lg p-3">
+                    <div className="text-xs text-zinc-500 mb-1">Training Samples</div>
+                    <div className="text-lg font-semibold text-white">{modelInfo.training_config?.total_training_samples || 'N/A'}</div>
+                  </div>
+                  <div className="bg-white/[0.02] rounded-lg p-3">
+                    <div className="text-xs text-zinc-500 mb-1">Features Used</div>
+                    <div className="text-lg font-semibold text-white">{modelInfo.features?.count || 'N/A'}</div>
+                  </div>
+                </div>
+
+                {/* Data Source Badge */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`px-2 py-1 rounded text-xs ${modelInfo.data_source?.includes('Real') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                    {modelInfo.data_source?.includes('Real') ? '✓ Real Data' : '⚠ Synthetic'}
+                  </div>
+                  <div className="text-xs text-zinc-500">
+                    {modelInfo.training_config?.train_window}
+                  </div>
+                </div>
+
+                {/* Expanded Details */}
+                {showModelInfo && (
+                  <div className="space-y-3 pt-3 border-t border-white/[0.06]">
+                    {/* Accuracy Metrics with Tooltips */}
+                    {modelInfo.accuracy_metrics?.mape_validation && (
+                      <div className="flex justify-between items-center group relative">
+                        <span className="text-sm text-zinc-400 flex items-center gap-1">
+                          MAPE Score
+                          <span className="w-4 h-4 rounded-full bg-zinc-800 text-[10px] flex items-center justify-center text-zinc-500 cursor-help">?</span>
+                          <span className="absolute left-0 bottom-full mb-2 px-2 py-1 bg-zinc-900 border border-white/10 rounded text-xs text-zinc-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            Mean Absolute Percentage Error - lower is better
+                          </span>
+                        </span>
+                        <span className="text-sm text-white font-medium">{modelInfo.accuracy_metrics.mape_validation.toFixed(2)}%</span>
+                      </div>
+                    )}
+
+                    {modelInfo.accuracy_metrics?.pi_coverage && (
+                      <div className="flex justify-between items-center group relative">
+                        <span className="text-sm text-zinc-400 flex items-center gap-1">
+                          PI Coverage
+                          <span className="w-4 h-4 rounded-full bg-zinc-800 text-[10px] flex items-center justify-center text-zinc-500 cursor-help">?</span>
+                          <span className="absolute left-0 bottom-full mb-2 px-2 py-1 bg-zinc-900 border border-white/10 rounded text-xs text-zinc-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            % of actual values within prediction interval
+                          </span>
+                        </span>
+                        <span className="text-sm text-white font-medium">{(modelInfo.accuracy_metrics.pi_coverage * 100).toFixed(1)}%</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-zinc-400">Model Version</span>
+                      <span className="text-sm text-zinc-300 font-mono">{modelInfo.model_version}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-zinc-400">Last Trained</span>
+                      <span className="text-sm text-zinc-300">{modelInfo.last_retrained || 'N/A'}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-zinc-400">Quantiles</span>
+                      <span className="text-sm text-zinc-300">{modelInfo.quantiles?.join(', ')}</span>
+                    </div>
+
+                    {/* Feature List (Collapsible) */}
+                    <details className="mt-2">
+                      <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400">View all {modelInfo.features?.count} features</summary>
+                      <div className="mt-2 text-xs text-zinc-600 font-mono bg-black/20 p-2 rounded max-h-32 overflow-y-auto">
+                        {modelInfo.features?.list?.map((f, i) => (
+                          <div key={i}>{f}</div>
+                        ))}
+                      </div>
+                    </details>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* RIGHT COLUMN - Analysis Result */}
           <div className="lg:col-span-2">
             <div className="bg-[#111113] border border-white/[0.06] rounded-2xl p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Analysis Result</h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-semibold">Analysis Result</h2>
+                  {/* Model Accuracy Badge */}
+                  {backtestStats && (
+                    <Link
+                      to="/backtest"
+                      className="group relative flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-full text-xs text-emerald-400 transition-all"
+                    >
+                      <Activity className="w-3 h-3" />
+                      <span>MAPE {backtestStats.revenue?.avg_mape?.toFixed(1)}%</span>
+                      <span className="text-emerald-500/50">|</span>
+                      <span>Coverage {(backtestStats.revenue?.pi_coverage * 100)?.toFixed(0)}%</span>
+                      {/* Tooltip */}
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 border border-white/10 rounded-lg text-xs text-zinc-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                        <div className="flex items-center gap-1.5">
+                          <Info className="w-3 h-3 text-emerald-400" />
+                          <span>Verified against {backtestStats.total_quarters} quarters of real market data</span>
+                        </div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-zinc-900"></div>
+                      </div>
+                    </Link>
+                  )}
+                </div>
                 {result && !loading && (
                   <button
                     onClick={handleDownloadReport}
@@ -741,9 +956,8 @@ const SimpleDashboard = () => {
 
               {loading && (
                 <div className="flex flex-col items-center justify-center h-64">
-                  <Loader2 className="w-16 h-16 text-emerald-400 animate-spin mb-4" />
-                  <p className="text-zinc-400">Running AI analysis...</p>
-                  <p className="text-zinc-500 text-sm mt-2">This may take 10-20 seconds</p>
+                  <p className="text-zinc-300 mb-4">Running AI analysis with live agent timeline...</p>
+                  <AgentProgressTracker steps={agentProgress} />
                 </div>
               )}
 

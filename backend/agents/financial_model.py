@@ -59,7 +59,10 @@ class FinancialModelAgent(BaseAgent):
         if MODEL_PATH.exists():
             with open(MODEL_PATH, 'rb') as f:
                 self.models = pickle.load(f)
-            self.logger.info(f"Loaded models from {MODEL_PATH}")
+            # Load version from model if available
+            if 'version' in self.models:
+                self.model_version = self.models['version']
+            self.logger.info(f"Loaded models from {MODEL_PATH} (version: {self.model_version})")
         else:
             self.logger.warning(f"Model file {MODEL_PATH} not found. Agent will fail if run() is called.")
 
@@ -117,18 +120,43 @@ class FinancialModelAgent(BaseAgent):
                 )
                 trained_models[target][alpha] = model
 
-        # Save models and feature list
+        # Generate version string based on timestamp
+        from datetime import datetime
+        import json
+        version = f"v1.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        # Save models and feature list with version
         save_data = {
             "models": trained_models,
-            "feature_cols": feature_cols
+            "feature_cols": feature_cols,
+            "version": version,
+            "trained_at": datetime.now().isoformat()
         }
-        
+
         os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
         with open(MODEL_PATH, 'wb') as f:
             pickle.dump(save_data, f)
-        
+
+        # Save model metadata to JSON for easy access
+        metadata_path = BASE_DIR / "out" / "model_metadata.json"
+        metadata = {
+            "model_version": version,
+            "trained_at": datetime.now().isoformat(),
+            "feature_count": len(feature_cols),
+            "features": feature_cols,
+            "targets": ["revenue", "ebitda"],
+            "quantiles": [0.05, 0.5, 0.95],
+            "training_rows": {
+                "train": len(train_df),
+                "val": len(val_df)
+            }
+        }
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
         self.models = save_data
-        self.logger.info(f"Models saved to {MODEL_PATH}")
+        self.model_version = version
+        self.logger.info(f"Models saved to {MODEL_PATH} (version: {version})")
 
     async def run(self, input_data: FinancialModelInput) -> FinancialModelOutput:
         if not self.models:
