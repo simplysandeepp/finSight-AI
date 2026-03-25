@@ -23,6 +23,7 @@ from time import time
 import hashlib
 from .orchestrate import orchestrate
 from .websocket import router as websocket_router
+from .horizon import resolve_horizon_date
 # TODO: re-enable for production - MongoDB audit trail
 # from audit.audit_trail import init_db, get_audit_trail
 # from database.mongodb import connect_mongo, close_mongo
@@ -47,6 +48,7 @@ from utils.report_generator import build_executive_pdf
 
 logger = get_logger(__name__)
 APP_START_TS = int(time())
+REQUEST_TIMEOUT_SECONDS = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "90"))
 
 app = FastAPI(
     title="FinSight AI API",
@@ -80,6 +82,7 @@ def _extract_user(request: Request) -> Optional[dict[str, Any]]:
         return get_user_by_id(uid)
     except Exception:
         return None
+
 
 # Maximum file size for CSV uploads (10MB)
 MAX_CSV_SIZE_MB = 10
@@ -144,12 +147,12 @@ async def logging_middleware(request: Request, call_next):
 
         if request.url.path in prediction_paths:
             try:
-                response = await asyncio.wait_for(call_next(request), timeout=60.0)
+                response = await asyncio.wait_for(call_next(request), timeout=REQUEST_TIMEOUT_SECONDS)
             except asyncio.TimeoutError:
-                logger.warning(f"Request timeout after 60s: {request.url.path}")
+                logger.warning(f"Request timeout after {REQUEST_TIMEOUT_SECONDS}s: {request.url.path}")
                 return JSONResponse(
                     status_code=504,
-                    content={"detail": "Request timeout: prediction exceeded 60 seconds."}
+                    content={"detail": f"Request timeout: prediction exceeded {int(REQUEST_TIMEOUT_SECONDS)} seconds."}
                 )
         else:
             response = await call_next(request)
@@ -197,6 +200,11 @@ class PredictRequest(BaseModel):
         description="Analysis date in ISO format (YYYY-MM-DD)",
         examples=["2024-12-31", "2025-03-15"]
     )
+    horizon_quarters: Optional[int] = Field(
+        default=None,
+        description="Relative forecast horizon in quarters from today (1-4). Overrides as_of_date when supplied.",
+        examples=[1, 2, 4],
+    )
 
     @field_validator('company_id')
     @classmethod
@@ -220,6 +228,15 @@ class PredictRequest(BaseModel):
             )
         return v
 
+    @field_validator("horizon_quarters")
+    @classmethod
+    def validate_horizon(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 1 or v > 4:
+            raise ValueError("horizon_quarters must be between 1 and 4")
+        return v
+
 
 class PredictBatchRequest(BaseModel):
     """Request model for batch prediction endpoint."""
@@ -232,6 +249,11 @@ class PredictBatchRequest(BaseModel):
         default="2024-12-31",
         description="Analysis date in ISO format (YYYY-MM-DD)",
         examples=["2024-12-31", "2025-03-15"],
+    )
+    horizon_quarters: Optional[int] = Field(
+        default=None,
+        description="Relative forecast horizon in quarters from today (1-4). Overrides as_of_date when supplied.",
+        examples=[1, 2, 4],
     )
 
     @field_validator("tickers")
@@ -258,6 +280,15 @@ class PredictBatchRequest(BaseModel):
             )
         return v
 
+    @field_validator("horizon_quarters")
+    @classmethod
+    def validate_batch_horizon(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 1 or v > 4:
+            raise ValueError("horizon_quarters must be between 1 and 4")
+        return v
+
 
 
 class AuthRequest(BaseModel):
@@ -273,7 +304,7 @@ predict_error_responses = {
     429: {"description": "Rate limit exceeded."},
     503: {"description": "Upstream data source failure or insufficient agent outputs."},
     500: {"description": "Unexpected server error."},
-    504: {"description": "Prediction request exceeded 60-second timeout."},
+    504: {"description": "Prediction request exceeded the configured request timeout."},
 }
 
 
@@ -285,26 +316,33 @@ async def predict(request: PredictRequest, http_request: Request):
 
     - **company_id**: Stock ticker symbol (e.g., AAPL, MSFT)
     - **as_of_date**: Analysis date in YYYY-MM-DD format
+    - **horizon_quarters**: Relative forecast horizon from today (1-4). Overrides as_of_date when provided.
 
     Returns revenue and EBITDA forecasts with confidence intervals.
     """
     try:
         user = _extract_user(http_request)
-        cache_key = f"pred:{request.company_id}:{request.as_of_date}"
+        resolved_as_of_date = resolve_horizon_date(request.horizon_quarters) or request.as_of_date
+        cache_suffix = f"h{request.horizon_quarters}" if request.horizon_quarters else resolved_as_of_date
+        cache_key = f"pred:{request.company_id}:{cache_suffix}"
         cached = prediction_cache.get(cache_key)
         if cached is not None:
             cached = dict(cached)
             cached["cache_hit"] = True
             return cached
 
-        result = await orchestrate(request.company_id, request.as_of_date)
+        result = await orchestrate(
+            request.company_id,
+            resolved_as_of_date,
+            horizon_quarters=request.horizon_quarters or 1,
+        )
         result["cache_hit"] = False
 
         prediction_cache.set(cache_key, result, ttl_seconds=3600)
         try:
             save_prediction_record(
                 ticker=request.company_id,
-                as_of_date=request.as_of_date,
+                as_of_date=resolved_as_of_date,
                 result=result,
                 user_id=str(user["id"]) if user else None,
             )
@@ -332,19 +370,25 @@ async def predict(request: PredictRequest, http_request: Request):
         422: {"description": "Validation error (ticker count/date/ticker format)."},
         429: {"description": "Rate limit exceeded."},
         500: {"description": "Unexpected server error."},
-        504: {"description": "Batch prediction exceeded 60-second timeout."},
+        504: {"description": "Batch prediction exceeded the configured request timeout."},
     },
 )
 async def predict_batch(request: PredictBatchRequest):
     """Run predictions for 2-3 tickers and return side-by-side results."""
     results = []
+    resolved_as_of_date = resolve_horizon_date(request.horizon_quarters) or request.as_of_date
 
     for ticker in request.tickers:
         try:
-            cache_key = f"pred:{ticker}:{request.as_of_date}"
+            cache_suffix = f"h{request.horizon_quarters}" if request.horizon_quarters else resolved_as_of_date
+            cache_key = f"pred:{ticker}:{cache_suffix}"
             item = prediction_cache.get(cache_key)
             if item is None:
-                item = await orchestrate(ticker, request.as_of_date)
+                item = await orchestrate(
+                    ticker,
+                    resolved_as_of_date,
+                    horizon_quarters=request.horizon_quarters or 1,
+                )
                 prediction_cache.set(cache_key, item, ttl_seconds=3600)
             results.append({"ticker": ticker, "status": "success", "result": item})
         except Exception as exc:
@@ -352,7 +396,8 @@ async def predict_batch(request: PredictBatchRequest):
             results.append({"ticker": ticker, "status": "error", "error": str(exc)})
 
     return {
-        "as_of_date": request.as_of_date,
+        "as_of_date": resolved_as_of_date,
+        "horizon_quarters": request.horizon_quarters or 1,
         "count": len(request.tickers),
         "results": results,
     }

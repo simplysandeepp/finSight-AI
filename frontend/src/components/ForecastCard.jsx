@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { formatFinancialMillions } from '../utils/formatters.js';
 
@@ -42,7 +43,12 @@ const ForecastCard = ({ result }) => {
   }, [forecast]);
 
   return (
-    <div className="bg-[#121520] border border-white/10 rounded-2xl p-5 space-y-4">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="bg-[#121520] border border-white/10 rounded-2xl p-5 space-y-4"
+    >
       <h3 className="text-lg font-semibold">Forecast Fan Chart</h3>
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
@@ -75,7 +81,7 @@ const ForecastCard = ({ result }) => {
           </ResponsiveContainer>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

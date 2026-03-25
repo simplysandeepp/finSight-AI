@@ -15,6 +15,7 @@ import uuid
 from typing import List, Dict, Any, Optional
 from loguru import logger as Logger
 from pathlib import Path
+from copy import deepcopy
 
 from agents.transcript_nlp import TranscriptNLPAgent, TranscriptNLPInput
 from agents.financial_model import FinancialModelAgent, FinancialModelInput
@@ -70,9 +71,75 @@ def get_geometric_mean(values: List[float]) -> float:
         return 0.0
     return float(np.exp(np.mean(np.log([v if v > 0 else 1e-6 for v in values]))))
 
+
+def _clamp(value: float, low: float, high: float) -> float:
+    return float(max(low, min(high, value)))
+
+
+def project_features_for_horizon(features: Dict[str, Any], horizon_quarters: int) -> Dict[str, Any]:
+    if horizon_quarters <= 1:
+        return dict(features)
+
+    projected = deepcopy(features)
+
+    revenue_current = float(features.get("revenue", features.get("revenue_lag_1q", 0)) or 0)
+    revenue_lag_1q = float(features.get("revenue_lag_1q", revenue_current) or revenue_current)
+    revenue_lag_2q = float(features.get("revenue_lag_2q", revenue_lag_1q) or revenue_lag_1q)
+    revenue_lag_4q = float(features.get("revenue_lag_4q", revenue_lag_2q) or revenue_lag_2q)
+
+    qoq_growth = _clamp(float(features.get("revenue_growth_qoq", 0.02) or 0.02), -0.35, 0.35)
+    yoy_growth = _clamp(float(features.get("revenue_growth_yoy", qoq_growth * 4) or (qoq_growth * 4)), -0.70, 0.70)
+    effective_quarterly_growth = _clamp((qoq_growth * 0.65) + ((yoy_growth / 4.0) * 0.35), -0.30, 0.30)
+    extra_steps = horizon_quarters - 1
+
+    series = [revenue_current]
+    next_value = revenue_current
+    for _ in range(4):
+        next_value *= (1 + effective_quarterly_growth)
+        series.append(next_value)
+
+    future_current = revenue_current * ((1 + effective_quarterly_growth) ** extra_steps)
+    future_lag_1q = revenue_current * ((1 + effective_quarterly_growth) ** max(extra_steps - 1, 0))
+    future_lag_2q = revenue_current * ((1 + effective_quarterly_growth) ** max(extra_steps - 2, 0))
+    future_lag_4q = revenue_lag_4q * ((1 + (yoy_growth / 4.0)) ** extra_steps)
+
+    trailing_four = [
+        future_current,
+        future_lag_1q,
+        future_lag_2q,
+        future_lag_4q,
+    ]
+
+    current_margin = float(features.get("ebitda_margin", features.get("ebitda_margin_lag_1q", 0.2)) or 0.2)
+    lag_margin = float(features.get("ebitda_margin_lag_1q", current_margin) or current_margin)
+    mean_margin = float(features.get("ebitda_margin_roll_mean_4q", current_margin) or current_margin)
+    margin_trend = _clamp(current_margin - lag_margin, -0.05, 0.05)
+    projected_margin = _clamp(current_margin + (margin_trend * extra_steps), 0.01, 0.75)
+
+    projected["revenue"] = future_current
+    projected["net_income"] = float(projected.get("net_income", revenue_current * 0.2) or (revenue_current * 0.2)) * ((1 + effective_quarterly_growth) ** extra_steps)
+    projected["revenue_lag_1q"] = future_lag_1q
+    projected["revenue_lag_2q"] = future_lag_2q
+    projected["revenue_lag_4q"] = future_lag_4q
+    projected["revenue_roll_mean_4q"] = float(np.mean(trailing_four))
+    projected["revenue_roll_std_4q"] = float(np.std(trailing_four))
+    projected["revenue_growth_qoq"] = effective_quarterly_growth
+    projected["revenue_growth_yoy"] = _clamp(((1 + effective_quarterly_growth) ** 4) - 1, -0.75, 1.5)
+    projected["ebitda_margin"] = projected_margin
+    projected["ebitda_margin_lag_1q"] = _clamp(projected_margin - margin_trend, 0.01, 0.75)
+    projected["ebitda_margin_roll_mean_4q"] = _clamp((mean_margin + projected_margin) / 2, 0.01, 0.75)
+    projected["ebitda_margin_roll_std_4q"] = float(
+        np.std([current_margin, lag_margin, mean_margin, projected_margin])
+    )
+    projected["forecast_horizon_quarters"] = horizon_quarters
+    projected["forecast_growth_assumption_qoq"] = effective_quarterly_growth
+
+    return projected
+
 async def orchestrate(
     company_id: str,
     as_of_date: str,
+    horizon_quarters: int = 1,
     org_features: Optional[Dict[str, Any]] = None,
     org_quarter: Optional[str] = None,
     org_industry: Optional[str] = None,
@@ -85,7 +152,8 @@ async def orchestrate(
     request_id = f"req-{uuid.uuid4().hex[:8]}"
     trace_id = f"trace-{uuid.uuid4().hex[:8]}"
     
-    logger.info(f"Orchestrating request {request_id} for {company_id} as of {as_of_date}")
+    resolved_horizon = max(1, int(horizon_quarters or 1))
+    logger.info(f"Orchestrating request {request_id} for {company_id} as of {as_of_date} (horizon={resolved_horizon}Q)")
     
     # Initialize Alpha Vantage Client
     av_client = AlphaVantageClient()
@@ -339,6 +407,9 @@ async def orchestrate(
         quarter = company_row['quarter'].iloc[0]
         headlines = [f"Record profits for {company_id}", "Sector outlook neutral"]
 
+    if features:
+        features = project_features_for_horizon(features, resolved_horizon)
+
     # 3. Fetch transcript (with live fallback placeholder)
     if TRANSCRIPTS_PATH.exists() and not live_data_available:
         with open(TRANSCRIPTS_PATH, 'r') as f:
@@ -532,6 +603,9 @@ async def orchestrate(
         "model_version": actual_model_version,
         "status": "success" if not degraded_agents else "partial",
         "latency_ms": latency_ms,
+        "as_of_date": as_of_date,
+        "horizon_quarters": resolved_horizon,
+        "resolved_target_date": as_of_date,
         "result": final_output_dict,
         "data_source": "csv_upload" if csv_mode else ("org_upload" if org_mode else "live_finnhub"),
         "explainability": {

@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from .orchestrate import orchestrate
+from .horizon import resolve_horizon_date
 
 
 router = APIRouter()
@@ -37,23 +38,29 @@ async def predict_websocket(websocket: WebSocket):
         req = json.loads(raw)
 
         company_id = (req.get("company_id") or "").strip().upper()
-        as_of_date = (req.get("as_of_date") or "").strip()
+        horizon_quarters = req.get("horizon_quarters")
+        as_of_date = resolve_horizon_date(horizon_quarters) or (req.get("as_of_date") or "").strip()
 
         if not company_id or not as_of_date:
             await websocket.send_text(json.dumps({
                 "type": "error",
-                "message": "company_id and as_of_date are required"
+                "message": "company_id and either as_of_date or horizon_quarters are required"
             }))
             await websocket.close(code=1003)
             return
 
-        await _send_step(websocket, "data_fetch", "running", f"Fetching market data for {company_id}...")
+        horizon_label = f"{int(horizon_quarters)}Q out" if isinstance(horizon_quarters, int) else "selected date"
+        await _send_step(websocket, "data_fetch", "running", f"Fetching market data for {company_id} ({horizon_label})...")
         await _send_step(websocket, "financial_model", "running", "Running financial model...")
         await _send_step(websocket, "news_macro", "running", "Analyzing news and macro signals...")
         await _send_step(websocket, "competitor", "running", "Comparing peer performance...")
         await _send_step(websocket, "ensembler", "running", "Combining agent outputs...")
 
-        result = await orchestrate(company_id=company_id, as_of_date=as_of_date)
+        result = await orchestrate(
+            company_id=company_id,
+            as_of_date=as_of_date,
+            horizon_quarters=int(horizon_quarters) if isinstance(horizon_quarters, int) else 1,
+        )
 
         latencies = result.get("agent_latencies", {})
         if isinstance(latencies, dict):

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Activity, AlertCircle, Database } from 'lucide-react';
 import PredictionForm from '../components/PredictionForm.jsx';
 import AgentProgressTracker from '../components/AgentProgressTracker.jsx';
@@ -23,7 +24,7 @@ const SimpleDashboard = () => {
   const [error, setError] = useState('');
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [ticker, setTicker] = useState('AAPL');
-  const [date, setDate] = useState('2024-12-31');
+  const [horizon, setHorizon] = useState(1);
   const [csvFile, setCsvFile] = useState(null);
   const [orgDate, setOrgDate] = useState('2026-01-01');
   const [agentProgress, setAgentProgress] = useState([]);
@@ -113,7 +114,7 @@ const SimpleDashboard = () => {
     setLoading(true);
     setAgentProgress([]);
     try {
-      const data = await runWebsocketPrediction({ company_id: ticker, as_of_date: date });
+      const data = await runWebsocketPrediction({ company_id: ticker, horizon_quarters: horizon });
       setResult(data);
     } catch (err) {
       setError(err?.message || 'Prediction failed');
@@ -142,33 +143,6 @@ const SimpleDashboard = () => {
       setError(err?.message || 'CSV analysis failed');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDownloadReport = async () => {
-    if (!result) return;
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API}/api/generate-report`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ prediction_result: result }),
-      });
-      if (!response.ok) {
-        throw new Error(`Report generation failed (${response.status})`);
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `FinSight_Executive_Report_${result.request_id || 'report'}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err?.message || 'Report download failed');
     }
   };
 
@@ -205,8 +179,8 @@ const SimpleDashboard = () => {
               loading={loading}
               ticker={ticker}
               setTicker={setTicker}
-              date={date}
-              setDate={setDate}
+              horizon={horizon}
+              setHorizon={setHorizon}
               csvFile={csvFile}
               setCsvFile={setCsvFile}
               orgDate={orgDate}
@@ -247,16 +221,23 @@ const SimpleDashboard = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-4" id="dashboard-export-area">
             <div className="bg-[#121520] border border-white/10 rounded-2xl p-5 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Analysis Result</h2>
-                <p className="text-sm text-zinc-500">Live multi-agent orchestration output</p>
+                <p className="text-sm text-zinc-500">
+                  {result?.horizon_quarters
+                    ? `${result.horizon_quarters}Q forecast → ${result.resolved_target_date || result.as_of_date}`
+                    : 'Live multi-agent orchestration output'}
+                </p>
               </div>
               {result && (
                 <div className="flex items-center gap-3">
-                  <RecommendationBadge action={result.result?.recommendation?.action} />
-                  <ExecutiveReport onDownload={handleDownloadReport} disabled={!result} />
+                  <RecommendationBadge
+                    action={result.result?.recommendation?.action}
+                    simpleVerdict={result.result?.recommendation?.simple_verdict}
+                  />
+                  <ExecutiveReport disabled={!result} />
                 </div>
               )}
             </div>
@@ -280,6 +261,22 @@ const SimpleDashboard = () => {
 
             {!loading && result && (
               <>
+                {result.result?.recommendation?.simple_verdict && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.4 }}
+                    className={`rounded-2xl p-5 border text-center ${
+                      result.result.recommendation.action === 'buy'
+                        ? 'bg-emerald-500/10 border-emerald-500/30'
+                        : result.result.recommendation.action === 'sell'
+                        ? 'bg-red-500/10 border-red-500/30'
+                        : 'bg-amber-500/10 border-amber-500/30'
+                    }`}
+                  >
+                    <p className="text-lg font-semibold">{result.result.recommendation.simple_verdict}</p>
+                  </motion.div>
+                )}
                 <ForecastCard result={result} />
                 <ConfidenceBreakdown breakdown={confidenceBreakdown} />
                 <ShapExplainer shapValues={result.explainability?.shap_values || []} />

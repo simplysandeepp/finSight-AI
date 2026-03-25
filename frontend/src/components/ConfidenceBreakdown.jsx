@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
 const ConfidenceBreakdown = ({ breakdown }) => {
@@ -12,7 +13,12 @@ const ConfidenceBreakdown = ({ breakdown }) => {
   ];
 
   return (
-    <div className="bg-[#121520] border border-white/10 rounded-2xl p-5">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.15 }}
+      className="bg-[#121520] border border-white/10 rounded-2xl p-5"
+    >
       <h3 className="text-lg font-semibold mb-3">Agent Confidence Radar</h3>
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
@@ -24,7 +30,7 @@ const ConfidenceBreakdown = ({ breakdown }) => {
           </RadarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
