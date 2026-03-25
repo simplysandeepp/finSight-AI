@@ -193,26 +193,7 @@ class FinancialModelAgent(BaseAgent):
         
         forecasts = {}
         
-        # Calculate scale factor once (applies to both revenue and EBITDA)
-        scale_factor = 1.0
-        input_revenue_features = [
-            input_data.features.get('revenue_lag_1q', 0),
-            input_data.features.get('revenue_lag_2q', 0),
-            input_data.features.get('revenue_lag_4q', 0),
-            input_data.features.get('revenue_roll_mean_4q', 0)
-        ]
-        avg_input_revenue = sum(f for f in input_revenue_features if f > 0) / max(1, sum(1 for f in input_revenue_features if f > 0))
-        
-        # Training data: mean=$101M, max=$642M
-        training_avg = 101.0
-        training_max = 642.0
-        
-        # Apply scaling if input is significantly outside training range
-        if avg_input_revenue > training_max * 2:  # More than 2x max training value
-            # Use power scaling: scale_factor = (ratio)^0.70
-            scale_ratio = avg_input_revenue / training_avg
-            scale_factor = np.power(scale_ratio, 0.70)
-            self.logger.info(f"Applying scale factor {scale_factor:.2f}x to both revenue and EBITDA (input avg: ${avg_input_revenue:,.0f}M, ratio: {scale_ratio:.1f}x)")
+        scale_factor = 1.0  # Model retrained on real large-cap data; no synthetic scaling needed
         
         for target in ["revenue", "ebitda"]:
             # Get raw predictions from each quantile model

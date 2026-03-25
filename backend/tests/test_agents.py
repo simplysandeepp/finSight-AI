@@ -99,3 +99,68 @@ async def test_financial_model():
     assert output.revenue_forecast.p50 > 0
     assert output.ebitda_forecast.p50 > 0
     assert len(output.feature_importances) > 0
+
+
+@pytest.mark.asyncio
+async def test_financial_model_does_not_apply_legacy_scale_factor():
+    from agents.financial_model import FinancialModelAgent, FinancialModelInput
+
+    def _skip_model_load(self):
+        self.models = {}
+
+    class _FakeBooster:
+        def get_score(self, importance_type="gain"):
+            return {"revenue_lag_1q": 5.0, "revenue_growth_yoy": 3.0}
+
+    class _FakeModel:
+        def __init__(self, value):
+            self.value = value
+
+        def predict(self, X):
+            return np.array([self.value])
+
+        def get_booster(self):
+            return _FakeBooster()
+
+    FinancialModelAgent._load_models = _skip_model_load
+    agent = FinancialModelAgent()
+    agent.models = {
+        "feature_cols": [
+            "revenue_lag_1q", "revenue_lag_2q", "revenue_lag_4q", "ebitda_margin_lag_1q",
+            "revenue_roll_mean_4q", "revenue_roll_std_4q", "ebitda_margin_roll_mean_4q",
+            "ebitda_margin_roll_std_4q", "revenue_growth_yoy", "revenue_growth_qoq",
+            "scenario_bull", "scenario_neutral", "scenario_bear"
+        ],
+        "models": {
+            "revenue": {0.05: _FakeModel(380000.0), 0.5: _FakeModel(390000.0), 0.95: _FakeModel(410000.0)},
+            "ebitda": {0.05: _FakeModel(90000.0), 0.5: _FakeModel(95000.0), 0.95: _FakeModel(100000.0)},
+        },
+    }
+
+    input_data = FinancialModelInput(
+        request_id="test-req-fm-large-cap",
+        trace_id="test-trace-fm-large-cap",
+        model_version="v1",
+        company_id="GOOGL",
+        as_of_date="2024-12-31",
+        features={
+            "revenue_lag_1q": 88268.0,
+            "revenue_lag_2q": 84742.0,
+            "revenue_lag_4q": 80539.0,
+            "ebitda_margin_lag_1q": 0.38,
+            "revenue_roll_mean_4q": 86000.0,
+            "revenue_roll_std_4q": 3200.0,
+            "ebitda_margin_roll_mean_4q": 0.36,
+            "ebitda_margin_roll_std_4q": 0.02,
+            "revenue_growth_yoy": 0.12,
+            "revenue_growth_qoq": 0.04,
+            "scenario_bull": 0,
+            "scenario_neutral": 1,
+            "scenario_bear": 0
+        }
+    )
+
+    output = await agent.run(input_data)
+
+    assert output.revenue_forecast.p50 == pytest.approx(390000.0)
+    assert output.ebitda_forecast.p50 == pytest.approx(95000.0)

@@ -1,7 +1,8 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { formatFinancialMillions } from '../utils/formatters.js';
 
-const AnimatedValue = ({ value = 0, durationMs = 700, suffix = '' }) => {
+const AnimatedValue = ({ value = 0, durationMs = 700, formatValue }) => {
   const [display, setDisplay] = useState(0);
 
   useEffect(() => {
@@ -22,7 +23,7 @@ const AnimatedValue = ({ value = 0, durationMs = 700, suffix = '' }) => {
     return () => window.cancelAnimationFrame(rafId);
   }, [value, durationMs]);
 
-  return <>{display.toFixed(2)}{suffix}</>;
+  return <>{formatValue ? formatValue(display) : display.toFixed(2)}</>;
 };
 
 const ForecastCard = ({ result }) => {
@@ -47,8 +48,8 @@ const ForecastCard = ({ result }) => {
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={revenueData}>
             <XAxis dataKey="name" stroke="#71717a" />
-            <YAxis stroke="#71717a" />
-            <Tooltip />
+            <YAxis stroke="#71717a" tickFormatter={formatFinancialMillions} />
+            <Tooltip formatter={(value) => formatFinancialMillions(value)} />
             <Area type="monotone" dataKey="high" stroke="#60a5fa" fill="#60a5fa33" />
             <Area type="monotone" dataKey="low" stroke="#f87171" fill="#f8717133" />
             <Area type="monotone" dataKey="median" stroke="#34d399" fill="#34d39933" />
@@ -60,10 +61,10 @@ const ForecastCard = ({ result }) => {
         <div>
           <p className="text-xs text-zinc-500">Revenue P50</p>
           <p className="text-xl font-bold text-emerald-300">
-            $<AnimatedValue value={forecast.revenue_p50 || 0} suffix="M" />
+            <AnimatedValue value={forecast.revenue_p50 || 0} formatValue={formatFinancialMillions} />
           </p>
           <p className="text-xs text-zinc-500 mt-1">
-            EBITDA P50: $<AnimatedValue value={forecast.ebitda_p50 || 0} suffix="M" />
+            EBITDA P50: <AnimatedValue value={forecast.ebitda_p50 || 0} formatValue={formatFinancialMillions} />
           </p>
         </div>
         <div className="h-16">

@@ -12,6 +12,7 @@ import ExecutiveReport from '../components/ExecutiveReport.jsx';
 import AuditModal from '../components/AuditModal.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import LoadingSkeleton from '../components/LoadingSkeleton.jsx';
+import { formatFinancialMillions } from '../utils/formatters.js';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -238,7 +239,7 @@ const SimpleDashboard = () => {
                   {history.slice(0, 8).map((item) => (
                     <div key={item.id} className="text-xs border border-white/10 rounded-md p-2">
                       <div className="text-zinc-400">{item.created_at}</div>
-                      <div className="text-zinc-200">Revenue P50: ${Number(item.revenue_p50 || 0).toFixed(2)}M</div>
+                      <div className="text-zinc-200">Revenue P50: {formatFinancialMillions(item.revenue_p50 || 0)}</div>
                     </div>
                   ))}
                 </div>

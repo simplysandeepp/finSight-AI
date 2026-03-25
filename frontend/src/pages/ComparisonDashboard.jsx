@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GitCompareArrows, Loader2, AlertCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { formatFinancialMillions } from '../utils/formatters.js';
 
 const ComparisonDashboard = () => {
   const [tickersInput, setTickersInput] = useState('AAPL,MSFT');
@@ -120,8 +121,8 @@ const ComparisonDashboard = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={compareRows}>
                   <XAxis dataKey="ticker" stroke="#71717a" />
-                  <YAxis stroke="#71717a" />
-                  <Tooltip />
+                  <YAxis stroke="#71717a" tickFormatter={formatFinancialMillions} />
+                  <Tooltip formatter={(value, name) => [name === 'Confidence' ? value : formatFinancialMillions(value), name]} />
                   <Legend />
                   <Line type="monotone" dataKey="revenue" stroke="#34d399" name="Revenue P50 (M)" strokeWidth={2} />
                   <Line type="monotone" dataKey="confidence" stroke="#60a5fa" name="Confidence" strokeWidth={2} />
@@ -150,8 +151,8 @@ const ComparisonDashboard = () => {
                 ) : (
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between"><span className="text-zinc-500">Confidence</span><span>{confidence}%</span></div>
-                    <div className="flex justify-between"><span className="text-zinc-500">Revenue P50</span><span>{typeof revenue === 'number' ? `$${revenue.toFixed(2)}M` : 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-zinc-500">EBITDA P50</span><span>{typeof ebitda === 'number' ? `$${ebitda.toFixed(2)}M` : 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-500">Revenue P50</span><span>{typeof revenue === 'number' ? formatFinancialMillions(revenue) : 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-500">EBITDA P50</span><span>{typeof ebitda === 'number' ? formatFinancialMillions(ebitda) : 'N/A'}</span></div>
                     <div className="flex justify-between"><span className="text-zinc-500">Relative Strength</span><span>{strengthScore.toFixed(2)}</span></div>
                   </div>
                 )}
