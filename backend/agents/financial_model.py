@@ -176,14 +176,16 @@ class FinancialModelAgent(BaseAgent):
                 self.logger.info(f"Training XGBoost for {target} (alpha={alpha})")
                 
                 # Using quantile error objective for XGBoost >= 2.0
+                # Tighter parameters for better interval stability
                 model = xgb.XGBRegressor(
                     objective="reg:quantileerror",
                     quantile_alpha=alpha,
-                    n_estimators=100,
-                    learning_rate=0.1,
-                    max_depth=5,
-                    tree_method="hist", # Efficient for larger data
-                    random_state=42
+                    n_estimators=150,
+                    learning_rate=0.05,  # Slower learning for stability
+                    max_depth=6,
+                    tree_method="hist",
+                    random_state=42,
+                    early_stopping_rounds=20  # Prevent overfitting to historical means
                 )
                 
                 model.fit(

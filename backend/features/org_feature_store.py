@@ -86,6 +86,15 @@ def compute_org_features(rows: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], st
     revenue_growth_qoq = None
     if revenue_lag_1q and revenue_lag_1q != 0:
         revenue_growth_qoq = (revenues[-1] - revenue_lag_1q) / revenue_lag_1q
+    
+    # Growth acceleration (momentum feature)
+    revenue_growth_qoq_lag1 = None
+    if revenue_lag_2q and revenue_lag_2q != 0:
+        revenue_growth_qoq_lag1 = (revenue_lag_1q - revenue_lag_2q) / revenue_lag_2q
+    rev_growth_acceleration = (revenue_growth_qoq or 0.0) - (revenue_growth_qoq_lag1 or 0.0)
+    
+    # Efficiency metric (EBITDA per revenue)
+    ebitda_per_rev = ebitdas[-1] / revenues[-1] if revenues[-1] > 0 else (ebitda_margins[-1] if ebitda_margins else 0.0)
 
     # Build the feature dict — mirrors what feature_store.compute_features() produces
     features = {
@@ -114,6 +123,8 @@ def compute_org_features(rows: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], st
         # Growth
         "revenue_growth_yoy": revenue_growth_yoy or 0.0,
         "revenue_growth_qoq": revenue_growth_qoq or 0.0,
+        "rev_growth_acceleration": rev_growth_acceleration,
+        "ebitda_per_rev": ebitda_per_rev,
 
         # Scenario dummies (private orgs are always "neutral" scenario)
         "scenario_bear": 0,

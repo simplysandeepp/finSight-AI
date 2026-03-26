@@ -337,6 +337,13 @@ async def orchestrate(
                 revenue_growth_yoy = (revenue_current - revenue_lag_4q) / revenue_lag_4q if revenue_lag_4q > 0 else 0.05
                 revenue_growth_qoq = (revenue_current - revenue_lag_1q) / revenue_lag_1q if revenue_lag_1q > 0 else 0.02
                 
+                # Growth acceleration (momentum feature)
+                if q_lag_2:
+                    revenue_growth_qoq_lag1 = (revenue_lag_1q - revenue_lag_2q) / revenue_lag_2q if revenue_lag_2q > 0 else revenue_growth_qoq
+                else:
+                    revenue_growth_qoq_lag1 = revenue_growth_qoq * 0.95
+                rev_growth_acceleration = revenue_growth_qoq - revenue_growth_qoq_lag1
+                
                 # Rolling statistics
                 recent_revenues = [safe_revenue(q, 0) for q in quarters[:4]]
                 revenue_roll_mean_4q = sum(recent_revenues) / len(recent_revenues) if recent_revenues else revenue_current
@@ -349,6 +356,10 @@ async def orchestrate(
                 recent_margins = [safe_ebitda_margin(q, 0) for q in quarters[:4]]
                 ebitda_margin_roll_mean_4q = sum(recent_margins) / len(recent_margins) if recent_margins else ebitda_margin_current
                 ebitda_margin_roll_std_4q = float(np.std(recent_margins)) if len(recent_margins) > 1 else 0.02
+                
+                # Efficiency metric (EBITDA per revenue)
+                ebitda_current = latest.get("ebitda") or (revenue_current * ebitda_margin_current)
+                ebitda_per_rev = ebitda_current / revenue_current if revenue_current > 0 else ebitda_margin_current
                 
                 # Scenario flags (neutral by default for real data)
                 features = {
@@ -370,6 +381,8 @@ async def orchestrate(
                     "ebitda_margin_roll_std_4q": ebitda_margin_roll_std_4q,
                     "revenue_growth_yoy": revenue_growth_yoy,
                     "revenue_growth_qoq": revenue_growth_qoq,
+                    "rev_growth_acceleration": rev_growth_acceleration,
+                    "ebitda_per_rev": ebitda_per_rev,
                     "scenario_bear": 0,
                     "scenario_bull": 0,
                     "scenario_neutral": 1,

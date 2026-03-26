@@ -74,7 +74,16 @@ def get_ticker_data(ticker_symbol: str) -> pd.DataFrame:
         axis=1
     )
     
+    # QoQ growth (sequential quarters)
     final_df['revenue_growth'] = final_df['revenue'].pct_change(1).fillna(0.0)
+    
+    # YoY growth using same-quarter-previous-year (4 quarters back)
+    if len(final_df) >= 5:
+        final_df['revenue_growth_yoy'] = final_df['revenue'].pct_change(4).fillna(0.0)
+    else:
+        # Fallback: use QoQ annualized when insufficient history
+        final_df['revenue_growth_yoy'] = final_df['revenue_growth']
+        logger.warning(f"Insufficient history for YoY growth ({len(final_df)} quarters), using QoQ")
     
     # Add metadata and qualitative context
     final_df['seed'] = 0

@@ -96,6 +96,17 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     df['revenue_growth_yoy'] = df.groupby('company_id')['revenue'].pct_change(4, fill_method=None)
     df['revenue_growth_qoq'] = df.groupby('company_id')['revenue'].pct_change(1, fill_method=None)
     
+    # 4. Momentum/Acceleration Features (breaks mean-reversion trap)
+    # Growth acceleration = change in growth rate (second derivative)
+    df['rev_growth_acceleration'] = df.groupby('company_id')['revenue_growth_qoq'].diff()
+    
+    # Efficiency metric: EBITDA per revenue (margin alternative)
+    df['ebitda_per_rev'] = df['ebitda'] / df['revenue'].replace(0, np.nan)
+    
+    # Sector relative momentum (when sector average is available)
+    if 'sector_avg_growth' in df.columns:
+        df['relative_growth'] = df['revenue_growth_yoy'] - df['sector_avg_growth']
+    
     # 4. One-hot encode scenario
     logger.info("One-hot encoding scenario column")
     df = pd.get_dummies(df, columns=['scenario'], prefix='scenario')
