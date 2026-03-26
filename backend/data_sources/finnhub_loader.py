@@ -49,7 +49,7 @@ def get_company_financials(ticker: str) -> dict:
             return {"error": f"No financial data found for {ticker}"}
         
         records = []
-        for quarter in financials["data"][:8]:  # last 8 quarters
+        for quarter in financials["data"][:40]:  # last 8 quarters
             report = quarter.get("report", {})
             ic = report.get("ic", [])  # income statement
             
@@ -86,6 +86,45 @@ def get_company_financials(ticker: str) -> dict:
                 "operating_income": ebitda / 1e6 if ebitda else None,
                 "ticker": ticker
             })
+        
+        
+        # --- CUMULATIVE CONVERSION ---
+        from collections import defaultdict
+        sorted_q = sorted([q for q in records if q.get("date")], key=lambda x: x["date"])
+        
+        by_year = defaultdict(list)
+        for q in sorted_q:
+            by_year[q["date"][:4]].append(q)
+        
+        result_records = []
+        for year_qs in by_year.values():
+            year_qs.sort(key=lambda x: x["date"])
+            revs = [q.get("revenue") or 0 for q in year_qs]
+            
+            is_cumulative = (
+                len(year_qs) > 1 and
+                all(revs[i] > revs[i-1] * 1.1 for i in range(1, len(revs)))
+            )
+            
+            if is_cumulative:
+                prev_rev, prev_ebitda, prev_ni = 0, 0, 0
+                for q in year_qs:
+                    cur_rev    = q.get("revenue") or 0
+                    cur_ebitda = q.get("ebitda") or q.get("operating_income") or 0
+                    cur_ni     = q.get("net_income") or 0
+                    individual = dict(q)
+                    individual["revenue"]    = cur_rev    - prev_rev
+                    individual["ebitda"]     = cur_ebitda - prev_ebitda
+                    individual["net_income"] = cur_ni     - prev_ni
+                    # Fallback operating_income too if it exists
+                    individual["operating_income"] = individual["ebitda"]
+                    result_records.append(individual)
+                    prev_rev, prev_ebitda, prev_ni = cur_rev, cur_ebitda, cur_ni
+            else:
+                result_records.extend(year_qs)
+                
+        records = sorted(result_records, key=lambda x: x["date"], reverse=True)
+        # -----------------------------
         
         return {
             "ticker": ticker,
@@ -163,3 +202,13 @@ def get_peers_financials(peers: list) -> list:
         except:
             continue
     return peer_data
+
+def get_company_estimates(ticker: str) -> dict:
+    """
+    Fetch analyst EPS and Revenue estimates.
+    """
+    try:
+        estimates = client.company_eps_estimates(ticker)
+        return estimates
+    except Exception as e:
+        return {"error": str(e)}

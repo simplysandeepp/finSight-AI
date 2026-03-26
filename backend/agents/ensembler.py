@@ -247,27 +247,62 @@ Return ONLY valid JSON in this format:
                 human_review_required=res_json.get("human_review_required", final_combined_confidence < 0.7)
             )
         except Exception as e:
-            self.logger.error(f"Error in EnsemblerAgent: {e}")
+            self.logger.error(f"Error in EnsemblerAgent: {e}", exc_info=True)
             # Use fallback with tightened CI and mathematical confidence
             fallback_confidence = max(0.3, mathematical_confidence * 0.5)  # Penalize for LLM failure
+
+            # ── Rule-based signal when LLM is unavailable ───────────────────────
+            # Use NLP sentiment and combined confidence to derive a signal
+            # instead of always defaulting to monitor/HOLD.
+            nlp_sentiment = nlp_out.get("sentiment", 0)
+            if nlp_conf >= 0.65 and nlp_sentiment > 0.25 and mathematical_confidence >= 0.50:
+                fallback_action = "buy"
+                fallback_prefix = "BUY"
+                fallback_rationale = (
+                    f"Quantitative model signals are positive: NLP sentiment={nlp_sentiment:.2f}, "
+                    f"combined confidence={mathematical_confidence:.2f}. "
+                    "LLM narrative unavailable; data-driven signal is used."
+                )
+            elif nlp_conf >= 0.55 and nlp_sentiment < -0.15:
+                fallback_action = "sell"
+                fallback_prefix = "SELL"
+                fallback_rationale = (
+                    f"Quantitative model signals are negative: NLP sentiment={nlp_sentiment:.2f}, "
+                    f"combined confidence={mathematical_confidence:.2f}. "
+                    "LLM narrative unavailable; data-driven signal is used."
+                )
+            else:
+                fallback_action = "hold"
+                fallback_prefix = "HOLD"
+                fallback_rationale = (
+                    f"Insufficient signal strength for a directional call: NLP sentiment={nlp_sentiment:.2f}, "
+                    f"combined confidence={mathematical_confidence:.2f}. "
+                    "LLM narrative unavailable; data-driven signal is used."
+                )
+
+            fallback_verdict = (
+                f"{fallback_prefix}: The quantitative model forecasts revenue P50 of "
+                f"${base_rev:,.0f}M USD. LLM narrative was unavailable; signal derived from model data."
+            )
+
             return EnsemblerOutput(
                 request_id=input_data.request_id,
                 confidence=0.3,
                 final_forecast=FinalForecast(
-                    revenue_p50=base_rev, 
-                    ebitda_p50=base_ebitda, 
+                    revenue_p50=base_rev,
+                    ebitda_p50=base_ebitda,
                     revenue_ci=final_rev_ci,  # Use tightened CI even in fallback
                     ebitda_ci=final_ebitda_ci
                 ),
                 recommendation=Recommendation(
-                    action="monitor", 
-                    rationale="LLM services were unavailable, so only model-based forecast values are shown.",
-                    simple_summary="AI narrative analysis is temporarily unavailable. Forecast numbers are shown, but qualitative insights are limited.",
-                    simple_verdict="HOLD: Re-run after fixing API keys for a full recommendation with specific metric projections.",
-                    key_risks=["LLM services unavailable"],
-                    key_strengths=["Quant model forecast still computed"]
+                    action=fallback_action,
+                    rationale=fallback_rationale,
+                    simple_summary="AI narrative analysis is temporarily unavailable. Forecast numbers are shown and a data-driven signal has been applied based on quantitative indicators.",
+                    simple_verdict=fallback_verdict,
+                    key_risks=["LLM services unavailable — qualitative analysis missing"],
+                    key_strengths=["Quantitative model forecast computed", "Rule-based signal applied from NLP sentiment"]
                 ),
-                combined_confidence=fallback_confidence,  # Use calculated confidence
-                explanations=["Ensembler fallback activated due to LLM provider failure"],
+                combined_confidence=fallback_confidence,
+                explanations=["Ensembler fallback activated due to LLM provider failure. Signal derived from NLP sentiment and model confidence."],
                 human_review_required=True
             )

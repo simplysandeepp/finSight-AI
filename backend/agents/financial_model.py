@@ -288,23 +288,10 @@ class FinancialModelAgent(BaseAgent):
         
         forecasts = {}
         
-        X_scaled = X.copy()
-        scale_multiplier = self._get_scale_multiplier(input_data.features)
-        if scale_multiplier > 1.0:
-            for col in X_scaled.columns:
-                if (
-                    any(token in col for token in ("revenue", "ebitda", "income", "expenses"))
-                    and "growth" not in col
-                    and "margin" not in col
-                ):
-                    X_scaled[col] = X_scaled[col] / scale_multiplier
-
-        # 2. HISTORICAL MARGIN EXTRACTION (The Guardrail)
-        historical_margin = float(X['ebitda_margin_roll_mean_4q'].iloc[0])
-        if pd.isna(historical_margin) or historical_margin <= 0:
-            historical_margin = 0.15 # Fallback to 15%
+        # Remove scaling completely (trusting native xgboost)
+        X_model = X.copy()
             
-        # 3. HORIZON DAMPENING (Fixes the "Degraded" confidence score)
+        # HORIZON DAMPENING (Fixes the "Degraded" confidence score)
         horizon = input_data.features.get('forecast_horizon_quarters', 1)
         variance_penalty = 1.0
         if horizon > 1:
@@ -312,36 +299,23 @@ class FinancialModelAgent(BaseAgent):
             variance_penalty = 0.85 
 
         for target in ["revenue", "ebitda"]:
-            if target == "revenue":
-                # Predict Revenue
-                p05_raw = float(self.models['models'][target][0.05].predict(X_scaled)[0]) * scale_multiplier
-                p50_raw = float(self.models['models'][target][0.5].predict(X_scaled)[0]) * scale_multiplier
-                p95_raw = float(self.models['models'][target][0.95].predict(X_scaled)[0]) * scale_multiplier
-                
-                # Apply Confidence Dampening
-                p05_damp = p50_raw - ((p50_raw - p05_raw) * variance_penalty)
-                p95_damp = p50_raw + ((p95_raw - p50_raw) * variance_penalty)
+            # Predict Target Directly (Works for both revenue and ebitda now)
+            p05_raw = float(self.models['models'][target][0.05].predict(X_model)[0])
+            p50_raw = float(self.models['models'][target][0.5].predict(X_model)[0])
+            p95_raw = float(self.models['models'][target][0.95].predict(X_model)[0])
+            
+            # Apply Confidence Dampening
+            p05_damp = p50_raw - ((p50_raw - p05_raw) * variance_penalty)
+            p95_damp = p50_raw + ((p95_raw - p50_raw) * variance_penalty)
 
-                predictions = np.sort(
-                    np.maximum(np.array([p05_damp, p50_raw, p95_damp], dtype=float), 0.0)
-                )
-                forecasts[target] = ForecastValue(
-                    p05=float(predictions[0]),
-                    p50=float(predictions[1]),
-                    p95=float(predictions[2])
-                )
-                
-            elif target == "ebitda":
-                # Predict EBITDA using the Margin Guardrail
-                margin_p05 = historical_margin * 0.90 
-                margin_p50 = historical_margin        
-                margin_p95 = historical_margin * 1.05 
-                
-                forecasts[target] = ForecastValue(
-                    p05=float(forecasts["revenue"].p05 * margin_p05),
-                    p50=float(forecasts["revenue"].p50 * margin_p50),
-                    p95=float(forecasts["revenue"].p95 * margin_p95)
-                )
+            predictions = np.sort(
+                np.array([p05_damp, p50_raw, p95_damp], dtype=float)
+            )
+            forecasts[target] = ForecastValue(
+                p05=float(predictions[0]),
+                p50=float(predictions[1]),
+                p95=float(predictions[2])
+            )
 
 
         # Confidence based on Revenue forecast (as per standard)

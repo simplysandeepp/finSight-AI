@@ -116,7 +116,7 @@ def project_features_for_horizon(features: Dict[str, Any], horizon_quarters: int
 
     qoq_growth = _clamp(float(features.get("revenue_growth_qoq", 0.02) or 0.02), -0.35, 0.35)
     yoy_growth = _clamp(float(features.get("revenue_growth_yoy", qoq_growth * 4) or (qoq_growth * 4)), -0.70, 0.70)
-    effective_quarterly_growth = _clamp((qoq_growth * 0.65) + ((yoy_growth / 4.0) * 0.35), -0.30, 0.30)
+    effective_quarterly_growth = min(qoq_growth, 0.08)
     extra_steps = horizon_quarters - 1
 
     series = [revenue_current]
@@ -238,6 +238,50 @@ async def orchestrate(
                 # NOTE: Finnhub loader already converts to millions (see finnhub_loader.py line 60)
                 # This matches the training data scale (synthetic generator uses millions)
                 quarters = finnhub_data["quarters"]
+                
+                def convert_cumulative_to_quarterly(raw_quarters):
+                    """
+                    Finnhub sometimes returns cumulative YTD figures (e.g. Alphabet).
+                    Detect this by checking if same-year quarters increase monotonically.
+                    If so, subtract consecutive periods to get individual quarters.
+                    """
+                    from collections import defaultdict
+                    sorted_q = sorted([q for q in raw_quarters if q.get("date")], key=lambda x: x["date"])
+                    
+                    by_year = defaultdict(list)
+                    for q in sorted_q:
+                        if q.get("date"):
+                            by_year[q["date"][:4]].append(q)
+                    
+                    result = []
+                    for year_qs in by_year.values():
+                        year_qs.sort(key=lambda x: x["date"])
+                        revs = [q.get("revenue") or 0 for q in year_qs]
+                        
+                        # Detect cumulative: each value is larger than the previous
+                        is_cumulative = (
+                            len(year_qs) > 1 and
+                            all(revs[i] > revs[i-1] * 1.1 for i in range(1, len(revs)))
+                        )
+                        
+                        if is_cumulative:
+                            prev_rev, prev_ebitda, prev_ni = 0, 0, 0
+                            for q in year_qs:
+                                cur_rev    = q.get("revenue") or 0
+                                cur_ebitda = q.get("ebitda") or q.get("operating_income") or 0
+                                cur_ni     = q.get("net_income") or 0
+                                individual = dict(q)
+                                individual["revenue"]    = cur_rev    - prev_rev
+                                individual["ebitda"]     = cur_ebitda - prev_ebitda
+                                individual["net_income"] = cur_ni     - prev_ni
+                                result.append(individual)
+                                prev_rev, prev_ebitda, prev_ni = cur_rev, cur_ebitda, cur_ni
+                        else:
+                            result.extend(year_qs)
+                    
+                    return sorted(result, key=lambda x: x["date"], reverse=True)
+
+                quarters = convert_cumulative_to_quarterly(quarters)
                 
                 # Find the quarter matching as_of_date, or use latest
                 latest = None
@@ -362,6 +406,27 @@ async def orchestrate(
                 ebitda_current = latest.get("ebitda") or (revenue_current * ebitda_margin_current)
                 ebitda_per_rev = ebitda_current / revenue_current if revenue_current > 0 else ebitda_margin_current
                 
+                # Revenue TTM
+                revenue_ttm = sum([safe_revenue(q, 0) for q in quarters[:4]]) or revenue_current * 4
+                
+                # Sector extraction
+                sector = company_profile.get("sector", company_profile.get("finnhubIndustry", ""))
+                sector_tech = 1 if sector == "Technology" else 0
+                sector_finance = 1 if sector == "Finance" else 0
+                sector_healthcare = 1 if sector == "Healthcare" else 0
+                sector_consumer = 1 if sector in ["Consumer Discretionary", "Consumer Staples", "Consumer"] else 0
+                sector_energy = 1 if sector == "Energy" else 0
+                
+                # Analyst consensus
+                analyst_rev_consensus = 0
+                try:
+                    from data_sources.finnhub_loader import get_company_estimates
+                    estimates = get_company_estimates(company_id)
+                    if estimates and "data" in estimates and estimates["data"]:
+                        analyst_rev_consensus = estimates["data"][0].get("revenueAvg", 0) / 1e6
+                except Exception:
+                    pass
+                
                 # Scenario flags (neutral by default for real data)
                 features = {
                     # Core financials
@@ -384,6 +449,13 @@ async def orchestrate(
                     "revenue_growth_qoq": revenue_growth_qoq,
                     "rev_growth_acceleration": rev_growth_acceleration,
                     "ebitda_per_rev": ebitda_per_rev,
+                    "revenue_ttm": revenue_ttm,
+                    "sector_tech": sector_tech,
+                    "sector_finance": sector_finance,
+                    "sector_healthcare": sector_healthcare,
+                    "sector_consumer": sector_consumer,
+                    "sector_energy": sector_energy,
+                    "analyst_rev_consensus": analyst_rev_consensus,
                     "scenario_bear": 0,
                     "scenario_bull": 0,
                     "scenario_neutral": 1,
@@ -587,10 +659,10 @@ async def orchestrate(
         
         # Try cache for expensive agents
         if name in CACHEABLE_AGENTS:
-            cache_key = f"{name}:{input_data.company_id}:{input_data.as_of_date}"
+            cache_key = f"{name}:{company_id}:{as_of_date}"
             cached_result = macro_cache.get(cache_key)
             if cached_result is not None:
-                logger.info(f"[CACHE HIT] {name} for {input_data.company_id} (saved ~{agent.name if hasattr(agent, 'name') else name} seconds)")
+                logger.info(f"[CACHE HIT] {name} for {company_id} (saved ~{agent.name if hasattr(agent, 'name') else name} seconds)")
                 return name, cached_result, 0, None  # 0ms latency for cache hit
         
         start = time.time()
@@ -601,9 +673,9 @@ async def orchestrate(
             
             # Cache result for expensive agents
             if name in CACHEABLE_AGENTS and result is not None:
-                cache_key = f"{name}:{input_data.company_id}:{input_data.as_of_date}"
+                cache_key = f"{name}:{company_id}:{as_of_date}"
                 macro_cache.set(cache_key, result, ttl_seconds=CACHEABLE_AGENTS[name])
-                logger.info(f"[CACHE STORE] {name} for {input_data.company_id} (TTL: {CACHEABLE_AGENTS[name]}s)")
+                logger.info(f"[CACHE STORE] {name} for {company_id} (TTL: {CACHEABLE_AGENTS[name]}s)")
             
             return name, result, latency, None
         except Exception as e:

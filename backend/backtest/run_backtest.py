@@ -379,6 +379,18 @@ def run_backtest() -> Dict[str, Any]:
         "detailed_results": all_results
     }
 
+    # Guard: only persist if at least one ticker produced real results.
+    # Writing an all-zero file would cause the frontend to show MAPE 0% / Coverage 0%.
+    if not all_results:
+        msg = (
+            "Backtest produced no results — all tickers failed during data collection "
+            "(yfinance likely returned empty data). "
+            "backtest_results.json was NOT updated to avoid storing zeroed-out metrics. "
+            "Check network connectivity and yfinance API access, then retry."
+        )
+        logger.error(msg)
+        raise RuntimeError(msg)
+
     # Save to file
     out_dir = backend_dir / "out"
     out_dir.mkdir(exist_ok=True)

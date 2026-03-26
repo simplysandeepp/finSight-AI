@@ -177,13 +177,13 @@ const SimpleDashboard = () => {
             >
               Clear All
             </button>
-            {backtestStats && (
+            {backtestStats?.tickers_tested > 0 && backtestStats?.revenue?.avg_mape > 0 && (
               <Link
                 to="/backtest"
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-sm hover:bg-emerald-500/15 transition-colors"
               >
                 <Activity className="w-4 h-4" />
-                MAPE {backtestStats.revenue?.avg_mape?.toFixed(1)}% | Coverage {(backtestStats.revenue?.pi_coverage * 100)?.toFixed(0)}%
+                MAPE {backtestStats.revenue.avg_mape.toFixed(1)}% | Coverage {(backtestStats.revenue.pi_coverage * 100).toFixed(0)}%
               </Link>
             )}
           </div>
