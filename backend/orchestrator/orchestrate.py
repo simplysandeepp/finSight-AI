@@ -25,6 +25,7 @@ from agents.ensembler import EnsemblerAgent, EnsemblerInput
 from audit.audit_trail import persist_request
 from explainability.explainer import get_explanation
 from utils.alpha_vantage_client import AlphaVantageClient
+from utils.cache_store import macro_cache, profile_cache
 from data.yfinance_loader import get_ticker_data
 from features.feature_store import compute_features
 from data_sources.finnhub_loader import (
@@ -573,14 +574,37 @@ async def orchestrate(
         )
     }
     
-    # 6. Execute Agents in Parallel with Individual Timing
+    # 6. Execute Agents in Parallel with Individual Timing & Caching
     async def run_agent_with_timing(name: str, agent, input_data):
-        """Wrapper to time individual agent execution"""
+        """Wrapper to time individual agent execution with caching for expensive agents"""
+        
+        # Define cacheable agents with TTLs (in seconds)
+        CACHEABLE_AGENTS = {
+            "transcript_nlp": 3600,  # 1 hour
+            "news_macro": 3600,      # 1 hour
+            "competitor": 1800,       # 30 minutes
+        }
+        
+        # Try cache for expensive agents
+        if name in CACHEABLE_AGENTS:
+            cache_key = f"{name}:{input_data.company_id}:{input_data.as_of_date}"
+            cached_result = macro_cache.get(cache_key)
+            if cached_result is not None:
+                logger.info(f"[CACHE HIT] {name} for {input_data.company_id} (saved ~{agent.name if hasattr(agent, 'name') else name} seconds)")
+                return name, cached_result, 0, None  # 0ms latency for cache hit
+        
         start = time.time()
         try:
             timeout_seconds = get_agent_timeout_seconds(name)
             result = await asyncio.wait_for(agent.run(input_data), timeout=timeout_seconds)
             latency = int((time.time() - start) * 1000)  # Convert to ms
+            
+            # Cache result for expensive agents
+            if name in CACHEABLE_AGENTS and result is not None:
+                cache_key = f"{name}:{input_data.company_id}:{input_data.as_of_date}"
+                macro_cache.set(cache_key, result, ttl_seconds=CACHEABLE_AGENTS[name])
+                logger.info(f"[CACHE STORE] {name} for {input_data.company_id} (TTL: {CACHEABLE_AGENTS[name]}s)")
+            
             return name, result, latency, None
         except Exception as e:
             latency = int((time.time() - start) * 1000)

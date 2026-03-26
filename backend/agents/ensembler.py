@@ -1,5 +1,6 @@
 import json
 import asyncio
+import numpy as np
 from typing import List, Dict, Any
 from pydantic import Field, BaseModel
 from .base import BaseAgent, BaseAgentInput, BaseAgentOutput
@@ -33,20 +34,92 @@ class EnsemblerAgent(BaseAgent):
         super().__init__("ensembler")
 
     async def run(self, input_data: EnsemblerInput) -> EnsemblerOutput:
-        # 1. Calculate baselines upfront for robust fallback
+        # ═══════════════════════════════════════════════════════════════════════
+        # STEP 1: Extract Agent Outputs & Confidences
+        # ═══════════════════════════════════════════════════════════════════════
         fm_out = input_data.agent_outputs.get("financial_model", {})
+        nlp_out = input_data.agent_outputs.get("transcript_nlp", {})
+        macro_out = input_data.agent_outputs.get("news_macro", {})
+        comp_out = input_data.agent_outputs.get("competitor", {})
+        
+        # Extract confidences with fallbacks
+        fm_conf = float(fm_out.get("confidence", 0.5))
+        nlp_conf = float(nlp_out.get("confidence", 0.5))
+        macro_conf = float(macro_out.get("confidence", 0.5))
+        comp_conf = float(comp_out.get("confidence", 0.5))
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # STEP 2: Calculate Mathematical Combined Confidence (Weighted Geometric Mean)
+        # ═══════════════════════════════════════════════════════════════════════
+        # Weights: Financial model is anchor, others provide context
+        AGENT_WEIGHTS = {
+            "financial_model": 0.50,
+            "transcript_nlp": 0.25,
+            "news_macro": 0.15,
+            "competitor": 0.10
+        }
+        
+        # Geometric mean with weights: prod(conf_i ^ weight_i)
+        confidences = [fm_conf, nlp_conf, macro_conf, comp_conf]
+        weights = [AGENT_WEIGHTS["financial_model"], AGENT_WEIGHTS["transcript_nlp"], 
+                   AGENT_WEIGHTS["news_macro"], AGENT_WEIGHTS["competitor"]]
+        
+        # Clamp confidences to avoid log(0)
+        confidences = [max(0.01, min(0.99, c)) for c in confidences]
+        
+        # Weighted geometric mean
+        log_sum = sum(w * np.log(c) for w, c in zip(weights, confidences))
+        mathematical_confidence = float(np.exp(log_sum))
+        
+        self.logger.info(f"Agent confidences: FM={fm_conf:.3f}, NLP={nlp_conf:.3f}, Macro={macro_conf:.3f}, Comp={comp_conf:.3f}")
+        self.logger.info(f"Calculated combined confidence: {mathematical_confidence:.3f}")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # STEP 3: Extract Forecasts & Apply CI Tightening
+        # ═══════════════════════════════════════════════════════════════════════
         base_rev = fm_out.get("revenue_forecast", {}).get("p50", 102.5)
         base_ebitda = fm_out.get("ebitda_forecast", {}).get("p50", 25.0)
         
-        # Robustly handle CI
         rev_f = fm_out.get("revenue_forecast", {})
-        base_rev_ci = [rev_f.get("p05", base_rev * 0.9), rev_f.get("p95", base_rev * 1.1)]
+        base_rev_p05 = rev_f.get("p05", base_rev * 0.9)
+        base_rev_p95 = rev_f.get("p95", base_rev * 1.1)
         
         ebitda_f = fm_out.get("ebitda_forecast", {})
-        base_ebitda_ci = [ebitda_f.get("p05", base_ebitda * 0.9), ebitda_f.get("p95", base_ebitda * 1.1)]
-
-        # Pull NLP sentiment for verdict context
-        nlp_out = input_data.agent_outputs.get("transcript_nlp", {})
+        base_ebitda_p05 = ebitda_f.get("p05", base_ebitda * 0.9)
+        base_ebitda_p95 = ebitda_f.get("p95", base_ebitda * 1.1)
+        
+        # CI Tightening: When NLP/Macro have high confidence, narrow the intervals
+        # Formula: tightening_factor = 1 - (avg_auxiliary_confidence - 0.5) * tightening_strength
+        aux_confidences = [nlp_conf, macro_conf, comp_conf]
+        avg_aux_conf = float(np.mean(aux_confidences))
+        
+        # If auxiliary agents are confident (>0.7), tighten CI by up to 30%
+        tightening_strength = 0.6  # Max 60% tightening when aux_conf = 1.0
+        tightening_factor = 1.0 - max(0, (avg_aux_conf - 0.5)) * tightening_strength
+        tightening_factor = max(0.4, min(1.0, tightening_factor))  # Clamp to [0.4, 1.0]
+        
+        # Apply tightening symmetrically around P50
+        rev_range_half = (base_rev_p95 - base_rev_p05) / 2
+        tightened_rev_range_half = rev_range_half * tightening_factor
+        
+        ebitda_range_half = (base_ebitda_p95 - base_ebitda_p05) / 2
+        tightened_ebitda_range_half = ebitda_range_half * tightening_factor
+        
+        final_rev_ci = [
+            base_rev - tightened_rev_range_half,
+            base_rev + tightened_rev_range_half
+        ]
+        final_ebitda_ci = [
+            base_ebitda - tightened_ebitda_range_half,
+            base_ebitda + tightened_ebitda_range_half
+        ]
+        
+        self.logger.info(f"CI Tightening: aux_conf={avg_aux_conf:.3f}, factor={tightening_factor:.3f}")
+        self.logger.info(f"Revenue CI: [{base_rev_p05:.0f}, {base_rev_p95:.0f}] → [{final_rev_ci[0]:.0f}, {final_rev_ci[1]:.0f}]")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # STEP 4: Prepare LLM Context
+        # ═══════════════════════════════════════════════════════════════════════
         nlp_sentiment = nlp_out.get("sentiment", 0)
         sentiment_label = "highly positive NLP sentiment" if nlp_sentiment > 0.3 else ("negative NLP sentiment" if nlp_sentiment < -0.1 else "neutral NLP sentiment")
 
@@ -122,7 +195,15 @@ Return ONLY valid JSON in this format:
             recommendation_data = res_json.get("recommendation", {})
             if not isinstance(recommendation_data, dict): recommendation_data = {}
 
-            combined_conf = res_json.get("combined_confidence", 0.7)
+            # Use mathematical confidence instead of LLM guess
+            # (LLM can still suggest one, but we override with our calculation)
+            llm_suggested_conf = res_json.get("combined_confidence", mathematical_confidence)
+            
+            # Log if LLM suggestion differs significantly
+            if abs(llm_suggested_conf - mathematical_confidence) > 0.15:
+                self.logger.warning(f"LLM confidence ({llm_suggested_conf:.3f}) differs from calculated ({mathematical_confidence:.3f}). Using calculated.")
+            
+            final_combined_confidence = mathematical_confidence
 
             # Validate + enforce simple_verdict format
             raw_verdict = res_json.get("simple_verdict", "")
@@ -150,8 +231,8 @@ Return ONLY valid JSON in this format:
                 final_forecast=FinalForecast(
                     revenue_p50=float(final_forecast_data.get("revenue_p50", base_rev)),
                     ebitda_p50=float(final_forecast_data.get("ebitda_p50", base_ebitda)),
-                    revenue_ci=to_ci_list(final_forecast_data.get("revenue_ci"), base_rev_ci),
-                    ebitda_ci=to_ci_list(final_forecast_data.get("ebitda_ci"), base_ebitda_ci)
+                    revenue_ci=final_rev_ci,  # Use tightened CI
+                    ebitda_ci=final_ebitda_ci  # Use tightened CI
                 ),
                 recommendation=Recommendation(
                     action=recommendation_data.get("action", res_json.get("action", "monitor")),
@@ -161,20 +242,22 @@ Return ONLY valid JSON in this format:
                     key_risks=recommendation_data.get("key_risks", res_json.get("key_risks", [])),
                     key_strengths=recommendation_data.get("key_strengths", res_json.get("key_strengths", []))
                 ),
-                combined_confidence=combined_conf,
+                combined_confidence=final_combined_confidence,  # Use mathematical confidence
                 explanations=res_json.get("explanations", []),
-                human_review_required=res_json.get("human_review_required", combined_conf < 0.7)
+                human_review_required=res_json.get("human_review_required", final_combined_confidence < 0.7)
             )
         except Exception as e:
             self.logger.error(f"Error in EnsemblerAgent: {e}")
+            # Use fallback with tightened CI and mathematical confidence
+            fallback_confidence = max(0.3, mathematical_confidence * 0.5)  # Penalize for LLM failure
             return EnsemblerOutput(
                 request_id=input_data.request_id,
                 confidence=0.3,
                 final_forecast=FinalForecast(
                     revenue_p50=base_rev, 
                     ebitda_p50=base_ebitda, 
-                    revenue_ci=base_rev_ci,
-                    ebitda_ci=base_ebitda_ci
+                    revenue_ci=final_rev_ci,  # Use tightened CI even in fallback
+                    ebitda_ci=final_ebitda_ci
                 ),
                 recommendation=Recommendation(
                     action="monitor", 
@@ -184,7 +267,7 @@ Return ONLY valid JSON in this format:
                     key_risks=["LLM services unavailable"],
                     key_strengths=["Quant model forecast still computed"]
                 ),
-                combined_confidence=0.3,
+                combined_confidence=fallback_confidence,  # Use calculated confidence
                 explanations=["Ensembler fallback activated due to LLM provider failure"],
                 human_review_required=True
             )
