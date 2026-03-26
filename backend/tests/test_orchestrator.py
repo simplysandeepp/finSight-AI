@@ -23,13 +23,15 @@ class _TranscriptAgent:
 
 
 class _FinancialAgent:
+    confidence = 0.91
+
     def __init__(self):
         self.model_version = "test_v1"
         self.models = {}
 
     async def run(self, input_data):
         return _DummyAgentOutput(
-            confidence=0.91,
+            confidence=self.confidence,
             payload={
                 "revenue_forecast": {"p05": 95.0, "p50": 100.0, "p95": 110.0},
                 "ebitda_forecast": {"p05": 18.0, "p50": 20.0, "p95": 23.0},
@@ -100,3 +102,30 @@ async def test_orchestrate_happy_path(monkeypatch):
     assert response["status"] == "success"
     assert response["model_version"] == "test_v1"
     assert "result" in response
+
+
+@pytest.mark.asyncio
+async def test_orchestrate_does_not_degrade_financial_model_just_below_point_five(monkeypatch):
+    import orchestrator.orchestrate as orch
+
+    class _BorderlineFinancialAgent(_FinancialAgent):
+        confidence = 0.4917
+
+    monkeypatch.setattr(orch, "TranscriptNLPAgent", _TranscriptAgent)
+    monkeypatch.setattr(orch, "FinancialModelAgent", _BorderlineFinancialAgent)
+    monkeypatch.setattr(orch, "NewsMacroAgent", _NewsAgent)
+    monkeypatch.setattr(orch, "CompetitorAgent", _CompetitorAgent)
+    monkeypatch.setattr(orch, "EnsemblerAgent", _EnsemblerAgent)
+    monkeypatch.setattr(orch, "persist_request", _noop_persist)
+
+    response = await orch.orchestrate(
+        company_id="COMP_007",
+        as_of_date="2026-01-31",
+        org_features={"revenue": 100.0, "ebitda_margin": 0.2},
+        org_quarter="2026Q1",
+        org_industry="Technology",
+    )
+
+    assert response["status"] == "success"
+    assert "financial_model" not in response["degraded_agents"]
+    assert response["result"]["combined_confidence"] > 0.4

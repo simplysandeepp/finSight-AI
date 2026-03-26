@@ -76,7 +76,7 @@ class TranscriptNLPAgent(BaseAgent):
             # Increased timeout to 15s for transcript processing
             response_text = await asyncio.wait_for(
                 self.call_llm(prompt, self._get_system_prompt()),
-                timeout=15.0
+                timeout=60.0
             )
             
             # Simple JSON cleanup in case of markdown wrapping

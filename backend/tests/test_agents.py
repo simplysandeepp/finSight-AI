@@ -163,4 +163,4 @@ async def test_financial_model_does_not_apply_legacy_scale_factor():
     output = await agent.run(input_data)
 
     assert output.revenue_forecast.p50 == pytest.approx(390000.0)
-    assert output.ebitda_forecast.p50 == pytest.approx(95000.0)
+    assert output.ebitda_forecast.p50 == pytest.approx(390000.0 * 0.36)

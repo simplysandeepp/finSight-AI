@@ -19,6 +19,10 @@ FRED_SERIES = {
     "consumer_conf":   "UMCSENT",           # Consumer Sentiment
 }
 
+FRED_UNITS = {
+    "inflation": "pc1",  # Percent change from year ago
+}
+
 def get_macro_indicators() -> dict:
     """
     Fetch latest macro indicators from FRED.
@@ -28,17 +32,17 @@ def get_macro_indicators() -> dict:
     
     for name, series_id in FRED_SERIES.items():
         try:
-            # Get the last 2 data points
-            data = fred.get_series(series_id)
-            latest_value = float(data.dropna().iloc[-1])
-            prev_value = float(data.dropna().iloc[-2])
+            units = FRED_UNITS.get(name, "lin")
+            data = fred.get_series(series_id, units=units).dropna()
+            latest_value = float(data.iloc[-1])
+            prev_value = float(data.iloc[-2])
             change = latest_value - prev_value
             
             indicators[name] = {
                 "value": round(latest_value, 4),
                 "previous": round(prev_value, 4),
                 "change": round(change, 4),
-                "trend": "up" if change > 0 else "down"
+                "trend": "up" if change > 0 else ("down" if change < 0 else "flat")
             }
         except Exception as e:
             # Fallback to safe default if FRED fails

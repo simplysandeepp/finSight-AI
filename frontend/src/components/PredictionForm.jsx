@@ -9,32 +9,34 @@ const HORIZON_OPTIONS = [
 ];
 
 const PredictionForm = ({
-  role,
-  setRole,
-  loading,
-  ticker,
-  setTicker,
-  horizon,
-  setHorizon,
-  csvFile,
-  setCsvFile,
-  orgDate,
-  setOrgDate,
-  onInvestorSubmit,
-  onOrgSubmit,
+  role, setRole, loading,
+  ticker, setTicker,
+  horizon, setHorizon,
+  csvFile, setCsvFile,
+  orgDate, setOrgDate,
+  onInvestorSubmit, onOrgSubmit,
 }) => {
   return (
-    <div className="bg-[#121520] border border-white/10 rounded-2xl p-5">
-      <div className="flex gap-3 mb-5">
+    <div className="glass-panel p-5">
+      {/* Role switcher */}
+      <div className="flex gap-2 mb-5">
         <button
           onClick={() => setRole('investor')}
-          className={`px-4 py-2 rounded-lg border text-sm ${role === 'investor' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'border-white/10 text-zinc-300'}`}
+          className={`flex-1 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+            role === 'investor'
+              ? 'bg-white/10 border-white/20 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
+              : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
         >
           Investor
         </button>
         <button
           onClick={() => setRole('organization')}
-          className={`px-4 py-2 rounded-lg border text-sm ${role === 'organization' ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' : 'border-white/10 text-zinc-300'}`}
+          className={`flex-1 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+            role === 'organization'
+              ? 'bg-white/10 border-white/20 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
+              : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
         >
           Organization
         </button>
@@ -45,35 +47,59 @@ const PredictionForm = ({
           <input
             value={ticker}
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
-            className="w-full px-4 py-3 rounded-lg bg-[#0b0e16] border border-white/10 text-zinc-100 placeholder-zinc-500"
-            placeholder="Ticker: AAPL"
+            className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-gray-600 focus:outline-none focus:border-white/20 transition-colors"
+            placeholder="Ticker symbol: AAPL"
             required
           />
           <div>
-            <label className="block text-xs text-zinc-400 mb-1.5">Forecast Horizon</label>
+            <label className="block text-xs text-gray-500 mb-1.5 uppercase tracking-wider">Forecast Horizon</label>
             <select
               value={horizon}
               onChange={(e) => setHorizon(Number(e.target.value))}
-              className="w-full px-4 py-3 rounded-lg bg-[#0b0e16] border border-white/10 text-zinc-100 appearance-none cursor-pointer"
+              className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 transition-colors appearance-none cursor-pointer"
             >
               {HORIZON_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
+                <option key={opt.value} value={opt.value} className="bg-[#0d0d0f] text-white">
                   {opt.label}
                 </option>
               ))}
             </select>
           </div>
-          <button disabled={loading} className="w-full px-4 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-medium inline-flex justify-center items-center gap-2">
-            <TrendingUp className="w-4 h-4" /> Analyze Company
+          <button
+            disabled={loading}
+            className="w-full px-4 py-3 rounded-xl font-semibold text-sm inline-flex justify-center items-center gap-2 transition-all
+              bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500
+              shadow-[0_0_20px_rgba(99,102,241,0.3)] disabled:opacity-50 disabled:cursor-not-allowed text-white"
+          >
+            <TrendingUp className="w-4 h-4" />
+            {loading ? 'Analyzing...' : 'Analyze Company'}
           </button>
         </form>
       ) : (
         <form onSubmit={onOrgSubmit} className="space-y-3">
-          <input type="file" accept=".csv" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="w-full px-4 py-3 rounded-lg bg-[#0b0e16] border border-white/10" required />
-          {csvFile && <p className="text-xs text-cyan-300">{csvFile.name}</p>}
-          <input type="date" value={orgDate} onChange={(e) => setOrgDate(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-[#0b0e16] border border-white/10" required />
-          <button disabled={loading} className="w-full px-4 py-3 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white font-medium inline-flex justify-center items-center gap-2">
-            <Upload className="w-4 h-4" /> Analyze CSV
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+            className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-gray-300 text-sm"
+            required
+          />
+          {csvFile && <p className="text-xs text-indigo-300">{csvFile.name}</p>}
+          <input
+            type="date"
+            value={orgDate}
+            onChange={(e) => setOrgDate(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+            required
+          />
+          <button
+            disabled={loading}
+            className="w-full px-4 py-3 rounded-xl font-semibold text-sm inline-flex justify-center items-center gap-2
+              bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500
+              shadow-[0_0_20px_rgba(14,165,233,0.3)] disabled:opacity-50 text-white"
+          >
+            <Upload className="w-4 h-4" />
+            {loading ? 'Analyzing...' : 'Analyze CSV'}
           </button>
         </form>
       )}

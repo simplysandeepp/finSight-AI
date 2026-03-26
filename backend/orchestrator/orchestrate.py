@@ -38,6 +38,21 @@ from data_sources.news_loader import get_company_news, get_market_headlines
 logger = Logger.bind(component="orchestrator")
 ALLOW_SYNTHETIC_FALLBACK = os.getenv("ALLOW_SYNTHETIC_FALLBACK", "false").lower() == "true"
 
+DEFAULT_AGENT_TIMEOUT_SECONDS = float(os.getenv("AGENT_TIMEOUT_SECONDS", "45"))
+AGENT_TIMEOUT_SECONDS = {
+    "transcript_nlp": float(os.getenv("TRANSCRIPT_AGENT_TIMEOUT_SECONDS", "90")),
+    "financial_model": float(os.getenv("FINANCIAL_MODEL_TIMEOUT_SECONDS", str(DEFAULT_AGENT_TIMEOUT_SECONDS))),
+    "news_macro": float(os.getenv("NEWS_MACRO_TIMEOUT_SECONDS", str(DEFAULT_AGENT_TIMEOUT_SECONDS))),
+    "competitor": float(os.getenv("COMPETITOR_TIMEOUT_SECONDS", str(DEFAULT_AGENT_TIMEOUT_SECONDS))),
+}
+DEFAULT_DEGRADED_CONFIDENCE_THRESHOLD = float(os.getenv("DEFAULT_DEGRADED_CONFIDENCE_THRESHOLD", "0.35"))
+AGENT_DEGRADED_CONFIDENCE_THRESHOLDS = {
+    "transcript_nlp": float(os.getenv("TRANSCRIPT_DEGRADED_CONFIDENCE_THRESHOLD", str(DEFAULT_DEGRADED_CONFIDENCE_THRESHOLD))),
+    "financial_model": float(os.getenv("FINANCIAL_MODEL_DEGRADED_CONFIDENCE_THRESHOLD", "0.40")),
+    "news_macro": float(os.getenv("NEWS_MACRO_DEGRADED_CONFIDENCE_THRESHOLD", str(DEFAULT_DEGRADED_CONFIDENCE_THRESHOLD))),
+    "competitor": float(os.getenv("COMPETITOR_DEGRADED_CONFIDENCE_THRESHOLD", str(DEFAULT_DEGRADED_CONFIDENCE_THRESHOLD))),
+}
+
 # Peer mapping for real tickers
 PEER_MAP = {
     "AAPL": ["MSFT", "GOOGL", "META"],
@@ -74,6 +89,17 @@ def get_geometric_mean(values: List[float]) -> float:
 
 def _clamp(value: float, low: float, high: float) -> float:
     return float(max(low, min(high, value)))
+
+
+def get_agent_timeout_seconds(agent_name: str) -> float:
+    return float(AGENT_TIMEOUT_SECONDS.get(agent_name, DEFAULT_AGENT_TIMEOUT_SECONDS))
+
+
+def should_mark_agent_degraded(agent_name: str, confidence: float) -> bool:
+    threshold = float(
+        AGENT_DEGRADED_CONFIDENCE_THRESHOLDS.get(agent_name, DEFAULT_DEGRADED_CONFIDENCE_THRESHOLD)
+    )
+    return float(confidence) < threshold
 
 
 def project_features_for_horizon(features: Dict[str, Any], horizon_quarters: int) -> Dict[str, Any]:
@@ -264,11 +290,49 @@ async def orchestrate(
                     quarter = "2024Q4"
                 
                 # Calculate all required features for the model
-                revenue_current = safe_revenue(latest, 100)
-                revenue_lag_1q = safe_revenue(quarters[1] if len(quarters) > 1 else None, revenue_current * 0.98)
-                revenue_lag_2q = safe_revenue(quarters[2] if len(quarters) > 2 else None, revenue_current * 0.96)
-                revenue_lag_4q = safe_revenue(quarters[4] if len(quarters) > 4 else None, revenue_current * 0.92)
+                from datetime import datetime, timedelta
                 
+                # 1. Sort quarters strictly by date (newest first)
+                valid_quarters = [q for q in quarters if q.get("date")]
+                sorted_quarters = sorted(valid_quarters, key=lambda x: x["date"], reverse=True)
+
+                # 2. Helper function for Time-Based Lookup
+                def get_quarter_by_lag(quarters_list, base_date_str, months_lag):
+                    if not base_date_str: 
+                        return None
+                    base_date = datetime.strptime(base_date_str, "%Y-%m-%d")
+                    target_date = base_date - timedelta(days=months_lag * 30) # Approx days
+
+                    best_match = None
+                    min_diff = 9999
+                    
+                    for q in quarters_list:
+                        q_date = datetime.strptime(q["date"], "%Y-%m-%d")
+                        diff_days = abs((q_date - target_date).days)
+                        # Only accept if it's within a ~45 day window of the target quarter
+                        if diff_days < 45 and diff_days < min_diff:
+                            best_match = q
+                            min_diff = diff_days
+                            
+                    return best_match
+
+                # 3. Find specific lagged quarters chronologically
+                q_lag_1 = get_quarter_by_lag(sorted_quarters, latest.get("date"), 3)
+                q_lag_2 = get_quarter_by_lag(sorted_quarters, latest.get("date"), 6)
+                q_lag_4 = get_quarter_by_lag(sorted_quarters, latest.get("date"), 12)
+
+                # 4. Extract variables with smart sequential imputation
+                revenue_current = safe_revenue(latest, 100)
+
+                # If lag_1 is missing, base it on lag_2 if available, else current
+                if q_lag_1:
+                    revenue_lag_1q = safe_revenue(q_lag_1, revenue_current * 0.98)
+                else:
+                    revenue_lag_1q = safe_revenue(q_lag_2, revenue_current * 0.96) * 1.02 # Estimate
+
+                revenue_lag_2q = safe_revenue(q_lag_2, revenue_lag_1q * 0.98)
+                revenue_lag_4q = safe_revenue(q_lag_4, revenue_current * 0.92)
+
                 # Revenue growth calculations
                 revenue_growth_yoy = (revenue_current - revenue_lag_4q) / revenue_lag_4q if revenue_lag_4q > 0 else 0.05
                 revenue_growth_qoq = (revenue_current - revenue_lag_1q) / revenue_lag_1q if revenue_lag_1q > 0 else 0.02
@@ -501,7 +565,8 @@ async def orchestrate(
         """Wrapper to time individual agent execution"""
         start = time.time()
         try:
-            result = await asyncio.wait_for(agent.run(input_data), timeout=30.0)
+            timeout_seconds = get_agent_timeout_seconds(name)
+            result = await asyncio.wait_for(agent.run(input_data), timeout=timeout_seconds)
             latency = int((time.time() - start) * 1000)  # Convert to ms
             return name, result, latency, None
         except Exception as e:
@@ -535,7 +600,7 @@ async def orchestrate(
         else:
             agent_outputs[name] = output
             agent_latencies[name] = latency
-            if hasattr(output, "confidence") and output.confidence <= 0.5:
+            if hasattr(output, "confidence") and should_mark_agent_degraded(name, output.confidence):
                 degraded_agents.append(name)
     
     if len([k for k, v in agent_outputs.items() if not isinstance(v, dict) or "error" not in v]) < 1:

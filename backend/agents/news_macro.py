@@ -38,7 +38,7 @@ class NewsMacroAgent(BaseAgent):
         try:
             response_text = await asyncio.wait_for(
                 self.call_llm(prompt, system_prompt),
-                timeout=10.0
+                timeout=60.0
             )
             
             # Clean JSON response

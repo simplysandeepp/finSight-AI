@@ -10,6 +10,29 @@ load_dotenv()
 
 client = finnhub.Client(api_key=os.getenv("FINNHUB_API_KEY"))
 
+
+def _to_float(value):
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_percentage(value, *, fix_double_scaled: bool = False):
+    numeric_value = _to_float(value)
+    if numeric_value is None:
+        return None
+
+    if abs(numeric_value) <= 1:
+        return numeric_value * 100.0
+
+    if fix_double_scaled and 100 < abs(numeric_value) <= 10_000:
+        return numeric_value / 100.0
+
+    return numeric_value
+
 def get_company_financials(ticker: str) -> dict:
     """
     Fetch real quarterly financials for any company.
@@ -82,14 +105,21 @@ def get_company_profile(ticker: str) -> dict:
     try:
         profile = client.company_profile2(symbol=ticker)
         metric = client.company_basic_financials(ticker, "all")
+        metric_values = metric.get("metric", {})
+        revenue_growth = _normalize_percentage(metric_values.get("revenueGrowthTTMYoy"))
+        profit_margin = _normalize_percentage(
+            metric_values.get("netProfitMarginAnnual"),
+            fix_double_scaled=True,
+        )
         
         return {
             "name": profile.get("name", ticker),
             "sector": profile.get("finnhubIndustry", "Unknown"),
             "market_cap": profile.get("marketCapitalization", 0),  # in millions
-            "pe_ratio": metric.get("metric", {}).get("peNormalizedAnnual"),
-            "revenue_growth": metric.get("metric", {}).get("revenueGrowthTTMYoy"),
-            "profit_margin": metric.get("metric", {}).get("netProfitMarginAnnual"),
+            "pe_ratio": metric_values.get("peNormalizedAnnual"),
+            "revenue_growth": revenue_growth,
+            "revenue_growth_yoy": revenue_growth,
+            "profit_margin": profit_margin,
             "country": profile.get("country", ""),
             "exchange": profile.get("exchange", ""),
             "logo": profile.get("logo", ""),
